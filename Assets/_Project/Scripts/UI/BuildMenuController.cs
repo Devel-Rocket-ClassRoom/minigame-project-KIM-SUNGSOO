@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 using KRTD.Map;
-using KRTD.Combat;
 
 namespace KRTD.UI
 {
@@ -25,11 +24,11 @@ namespace KRTD.UI
         [SerializeField] private BuildMenuConfig buildConfig;
 
         [Header("관리 메뉴 아이콘 (점유된 스팟용)")]
+        [Tooltip("업그레이드 버튼 아이콘.")]
+        [SerializeField] private Sprite upgradeIcon;
+
         [Tooltip("판매 버튼 아이콘.")]
         [SerializeField] private Sprite sellIcon;
-
-        [Tooltip("사거리 토글 버튼 아이콘.")]
-        [SerializeField] private Sprite rangeToggleIcon;
 
         private RadialMenu currentMenu;
         private Camera mainCam;
@@ -73,21 +72,22 @@ namespace KRTD.UI
         }
 
         /// <summary>
-        /// 점유된 스팟 위에 관리(판매/사거리) 라디얼 메뉴를 연다.
+        /// 점유된 스팟 위에 관리(업그레이드/판매) 라디얼 메뉴를 연다.
         /// </summary>
         public void ShowManageMenu(BuildSpot spot)
         {
             if (spot == null) return;
 
             var entries = new List<RadialMenu.Entry>();
+            var current = spot.CurrentBuilding;
 
-            // 사거리 토글 (현재 ArcherTower 만 지원)
-            var towerComp = spot.GetComponentInChildren<ArcherTower>();
-            if (towerComp != null)
+            // 업그레이드: 다음 단계가 정의된 경우만 노출
+            if (current != null && current.CanUpgrade)
             {
-                entries.Add(new RadialMenu.Entry(rangeToggleIcon, () =>
+                var next = current.nextUpgrade;
+                entries.Add(new RadialMenu.Entry(upgradeIcon, () =>
                 {
-                    towerComp.ToggleRangeVisible();
+                    spot.ReplaceBuilding(next);
                 }));
             }
 

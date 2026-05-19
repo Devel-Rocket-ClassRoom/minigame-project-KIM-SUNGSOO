@@ -75,6 +75,17 @@ namespace KRTD.Map
             ClearBuildingVisual();
         }
 
+        /// <summary>
+        /// 현재 건물을 즉시 다른 단계로 교체한다 (업그레이드 등).
+        /// PlaceBuilding 은 isOccupied 일 때 거부하므로 업그레이드 경로용 분리 메서드.
+        /// </summary>
+        public bool ReplaceBuilding(BuildingData next)
+        {
+            if (next == null) return false;
+            RemoveBuilding();
+            return PlaceBuilding(next);
+        }
+
         private void ApplyBuildingVisual(BuildingData data)
         {
             if (spotMarker != null) spotMarker.enabled = false;

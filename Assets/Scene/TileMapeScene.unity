@@ -356,6 +356,54 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1038551696}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &446748385
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 446748387}
+  - component: {fileID: 446748386}
+  m_Layer: 0
+  m_Name: BuildMenuController
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &446748386
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 446748385}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed1c3409d33ea3141bd6653364e92ed7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KRTD.UI.BuildMenuController
+  menuPrefab: {fileID: 6942081926602742587, guid: b7072071d1a761148b502d66ad6610ef, type: 3}
+  buildConfig: {fileID: 11400000, guid: bd23258f90d8b1e438280af0b5a2544e, type: 2}
+  upgradeIcon: {fileID: 21300000, guid: 1c0647c9dba61414898ffc20ac2d2e5b, type: 3}
+  sellIcon: {fileID: 21300000, guid: c77e5d756e1804d31aa70c886c64c24d, type: 3}
+--- !u!4 &446748387
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 446748385}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.36429, y: -1.51684, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!4 &496181984 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1907343755664539213, guid: f2f9dc972b8586d45b83e3e3100a3169, type: 3}
@@ -10148,3 +10196,4 @@ SceneRoots:
   - {fileID: 1185583805}
   - {fileID: 1539579479}
   - {fileID: 741474255}
+  - {fileID: 446748387}
