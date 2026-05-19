@@ -1,5 +1,5 @@
 using UnityEngine;
-using KRTD.Combat;
+using KRTD.UI;
 
 namespace KRTD.Map
 {
@@ -117,22 +117,17 @@ namespace KRTD.Map
 
         private void OnMouseDown()
         {
-            if (isOccupied)
+            var menu = BuildMenuController.Instance;
+            if (menu == null)
             {
-                // TODO: 업그레이드/판매 UI 호출
-                Debug.Log($"[BuildSpot] 점유된 스팟 클릭: {currentBuilding?.buildingName}");
-
-                // 사거리 표시 토글 (현재는 ArcherTower 만 지원, 추후 인터페이스로 일반화)
-                if (currentBuildingInstance != null)
-                {
-                    var tower = currentBuildingInstance.GetComponent<ArcherTower>();
-                    if (tower != null) tower.ToggleRangeVisible();
-                }
+                Debug.LogWarning("[BuildSpot] 씬에 BuildMenuController 가 없다. UI 호출을 스킵.");
                 return;
             }
 
-            // TODO: 건설 UI 호출
-            Debug.Log($"[BuildSpot] 빈 스팟 클릭: {transform.position}");
+            if (isOccupied)
+                menu.ShowManageMenu(this);
+            else
+                menu.ShowBuildMenu(this);
         }
 
         /// <summary>
