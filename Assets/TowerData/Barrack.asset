@@ -14,6 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Map.BuildingData
   buildingName: Barrack
   icon: {fileID: 7384290322352760091, guid: 63555c658eb534f48acbb1ba682fbec3, type: 3}
-  buildingPrefab: {fileID: 0}
+  buildingPrefab: {fileID: 3007809756968280047, guid: b4e4b03b000bc1e46b00be17b94b5f66, type: 3}
   cost: 70
   nextUpgrade: {fileID: 0}
