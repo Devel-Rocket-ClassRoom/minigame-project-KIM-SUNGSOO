@@ -44,6 +44,16 @@ namespace KRTD.Map
         public Vector3 CenterWorld => transform.position;
         public BuildingData CurrentBuilding => currentBuilding;
 
+        /// <summary>
+        /// 현재 설치된 건물 인스턴스의 컴포넌트(또는 인터페이스 구현체)를 가져온다.
+        /// 미설치/미일치 시 null.
+        /// </summary>
+        public T GetBuildingComponent<T>() where T : class
+        {
+            if (currentBuildingInstance == null) return null;
+            return currentBuildingInstance.GetComponent<T>();
+        }
+
         private void Awake()
         {
             if (currentBuilding != null && isOccupied)

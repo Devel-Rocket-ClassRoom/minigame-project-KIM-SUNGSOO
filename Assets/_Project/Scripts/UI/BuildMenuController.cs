@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using KRTD.Combat;
 using KRTD.Map;
 
 namespace KRTD.UI
@@ -33,6 +34,13 @@ namespace KRTD.UI
         private RadialMenu currentMenu;
         private Camera mainCam;
         private int openedFrame = -1;
+
+        // 관리 메뉴에서 선택 중인 타워. 사거리 원을 메뉴와 함께 끄기 위해 보관.
+        private ISelectableTower selectedTower;
+
+        // 관리 메뉴 고정 위치 (도). 0 = 12시, 180 = 6시.
+        private const float UpgradeAngleDeg = 0f;
+        private const float SellAngleDeg = 180f;
 
         private void Awake()
         {
@@ -73,6 +81,8 @@ namespace KRTD.UI
 
         /// <summary>
         /// 점유된 스팟 위에 관리(업그레이드/판매) 라디얼 메뉴를 연다.
+        /// 메뉴가 열려있는 동안에는 해당 타워의 사거리 원이 표시된다.
+        /// 자리 배치는 고정: 업그레이드 = 12시, 판매 = 6시.
         /// </summary>
         public void ShowManageMenu(BuildSpot spot)
         {
@@ -81,27 +91,52 @@ namespace KRTD.UI
             var entries = new List<RadialMenu.Entry>();
             var current = spot.CurrentBuilding;
 
-            // 업그레이드: 다음 단계가 정의된 경우만 노출
+            // 업그레이드: 다음 단계가 정의된 경우만 노출 (12시 고정)
             if (current != null && current.CanUpgrade)
             {
                 var next = current.nextUpgrade;
                 entries.Add(new RadialMenu.Entry(upgradeIcon, () =>
                 {
                     spot.ReplaceBuilding(next);
-                }));
+                }, overrideAngleDeg: UpgradeAngleDeg));
             }
 
-            // 판매
+            // 판매 (6시 고정)
             entries.Add(new RadialMenu.Entry(sellIcon, () =>
             {
                 spot.RemoveBuilding();
-            }));
+            }, overrideAngleDeg: SellAngleDeg));
+
+            // 메뉴를 여는 동안 타워의 사거리 원을 표시
+            ShowTowerRange(spot);
 
             OpenMenuAt(spot.CenterWorld, entries);
         }
 
+        private void ShowTowerRange(BuildSpot spot)
+        {
+            // 이전 선택의 사거리가 남아있으면 먼저 끈다
+            HideTowerRange();
+
+            selectedTower = spot.GetBuildingComponent<ISelectableTower>();
+            selectedTower?.SetRangeVisible(true);
+        }
+
+        private void HideTowerRange()
+        {
+            // 판매로 타워 인스턴스가 이미 파괴됐을 수 있으므로 UnityEngine.Object 캐스트로 살아있는지 확인.
+            // (인터페이스 참조는 C# 기본 동등성을 따라 Unity 의 == 오버로드를 우회한다.)
+            var asObj = selectedTower as Object;
+            if (asObj != null)
+            {
+                selectedTower.SetRangeVisible(false);
+            }
+            selectedTower = null;
+        }
+
         public void CloseMenu()
         {
+            HideTowerRange();
             if (currentMenu != null)
             {
                 currentMenu.Close();
@@ -131,6 +166,8 @@ namespace KRTD.UI
             {
                 // 자기 자신이 정상 종료된 경우에만 참조 해제
                 currentMenu = null;
+                // 메뉴가 끝까지 닫힌 시점에 사거리 원도 함께 끈다
+                HideTowerRange();
             });
         }
 

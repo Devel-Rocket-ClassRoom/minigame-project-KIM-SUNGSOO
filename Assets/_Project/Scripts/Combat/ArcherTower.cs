@@ -12,7 +12,7 @@ namespace KRTD.Combat
     ///   ├─ ArcherUnit (SpriteRenderer + Animator - Idle/Shoot)
     ///   └─ FirePoint  (빈 Transform - 화살이 생성되는 위치, 보통 Archer 손 근처)
     /// </summary>
-    public class ArcherTower : MonoBehaviour
+    public class ArcherTower : MonoBehaviour, ISelectableTower
     {
         [Header("스탯")]
         [SerializeField] private float range = 4f;
