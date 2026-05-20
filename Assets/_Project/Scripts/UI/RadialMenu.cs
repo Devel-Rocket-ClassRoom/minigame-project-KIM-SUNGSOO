@@ -23,12 +23,19 @@ namespace KRTD.UI
             /// 0 = 12시, 90 = 3시, 180 = 6시, 270 = 9시.
             /// </summary>
             public float? overrideAngleDeg;
+            /// <summary>
+            /// 비용/환급 표시. null 또는 0 = 표시 안 함.
+            /// 양수 = 차감 비용 (예: "20").
+            /// 음수 = 환급 (예: -15 → "+15", 녹색).
+            /// </summary>
+            public int? cost;
 
-            public Entry(Sprite icon, System.Action onClick, float? overrideAngleDeg = null)
+            public Entry(Sprite icon, System.Action onClick, float? overrideAngleDeg = null, int? cost = null)
             {
                 this.icon = icon;
                 this.onClick = onClick;
                 this.overrideAngleDeg = overrideAngleDeg;
+                this.cost = cost;
             }
         }
 
@@ -91,7 +98,7 @@ namespace KRTD.UI
                 {
                     captured?.Invoke();
                     Close();
-                });
+                }, entry.cost);
 
                 spawnedItems.Add(item);
 

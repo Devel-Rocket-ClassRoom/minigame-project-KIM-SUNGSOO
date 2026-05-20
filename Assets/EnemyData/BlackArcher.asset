@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: BlackArcher
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.EnemyData
   enemyName: Enemy
-  enemyPrefab: {fileID: 0}
-  maxHp: 10
-  moveSpeed: 1.5
-  goldReward: 5
+  enemyPrefab: {fileID: 8094173641835900607, guid: f8738e97b1b2d69409c82a2eb5a27ed5, type: 3}
+  maxHp: 40
+  moveSpeed: 1
+  goldReward: 20
   lifeDamage: 1
