@@ -18,10 +18,17 @@ namespace KRTD.UI
         {
             public Sprite icon;
             public System.Action onClick;
-            public Entry(Sprite icon, System.Action onClick)
+            /// <summary>
+            /// 이 항목을 고정 각도에 배치하고 싶을 때 사용. null 이면 startAngleDeg + step*i 로 자동 배치.
+            /// 0 = 12시, 90 = 3시, 180 = 6시, 270 = 9시.
+            /// </summary>
+            public float? overrideAngleDeg;
+
+            public Entry(Sprite icon, System.Action onClick, float? overrideAngleDeg = null)
             {
                 this.icon = icon;
                 this.onClick = onClick;
+                this.overrideAngleDeg = overrideAngleDeg;
             }
         }
 
@@ -89,7 +96,7 @@ namespace KRTD.UI
                 spawnedItems.Add(item);
 
                 // Unity 좌표: 0도 = 12시(+Y) 기준으로, 시계 방향으로 증가
-                float angleDeg = startAngleDeg + step * i;
+                float angleDeg = entry.overrideAngleDeg ?? (startAngleDeg + step * i);
                 float angleRad = (90f - angleDeg) * Mathf.Deg2Rad;
                 targetLocalPositions.Add(new Vector3(
                     Mathf.Cos(angleRad) * radius,
