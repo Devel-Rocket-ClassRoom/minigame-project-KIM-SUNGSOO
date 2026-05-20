@@ -44,15 +44,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: caf2363b24e635a45b104845ec23d30e, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.ArcherTower
   range: 5
   attackInterval: 1
   damage: 5
-  arrowPrefab: {fileID: 0}
+  arrowPrefab: {fileID: 4185045966540784182, guid: 70c9a80d62cd9ff488f20aecab023f4c, type: 3}
   firePoint: {fileID: 4820100000000000012}
   unitAnimator: {fileID: 4820100000000000010}
-  shootTrigger: Shoot
+  shootTrigger: 
   rangeLineWidth: 0.08
   rangeColor: {r: 0.3, g: 1, b: 0.6, a: 0.85}
   rangeSegments: 48
@@ -230,7 +230,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 6
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 7257567913506708742, guid: 72c22f22ea5e4488390ba536cd5ab98d, type: 3}
+  m_Sprite: {fileID: 7257567913506708742, guid: abc79d95ca2994e20b019ba42fccbcb9, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -250,14 +250,14 @@ Animator:
   m_GameObject: {fileID: 4820100000000000007}
   m_Enabled: 1
   m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 9100000, guid: e69e54e6f75584bf382ddbe934f532b6, type: 2}
+  m_Controller: {fileID: 9100000, guid: 9000152e1a8584e06b9325b9ec599654, type: 2}
   m_CullingMode: 0
   m_UpdateMode: 0
   m_ApplyRootMotion: 0
   m_LinearVelocityBlending: 0
   m_StabilizeFeet: 0
   m_AnimatePhysics: 0
-  m_WarningMessage:
+  m_WarningMessage: 
   m_HasTransformHierarchy: 1
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
