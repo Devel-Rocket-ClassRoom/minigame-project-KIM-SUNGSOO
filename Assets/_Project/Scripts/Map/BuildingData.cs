@@ -23,5 +23,11 @@ namespace KRTD.Map
         [Header("기타")]
         [Tooltip("건설 비용 (자원 시스템 도입 후 사용)")]
         public int cost = 0;
+
+        [Header("업그레이드")]
+        [Tooltip("이 건물의 다음 단계 데이터. 비어있으면 더 이상 업그레이드 불가.")]
+        public BuildingData nextUpgrade;
+
+        public bool CanUpgrade => nextUpgrade != null;
     }
 }
