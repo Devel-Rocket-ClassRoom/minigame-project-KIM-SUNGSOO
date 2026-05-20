@@ -15,3 +15,4 @@ MonoBehaviour:
   buildableBuildings:
   - {fileID: 11400000, guid: d9c1ca30f4467ba4aaea8e6d530134e7, type: 2}
   - {fileID: 11400000, guid: 11d46271838c4e6488ea785e42a17057, type: 2}
+  - {fileID: 11400000, guid: e63b7a4c8d592f3aa4e5b6c7d8e9f0a1, type: 2}
