@@ -12,7 +12,7 @@ namespace KRTD.Combat
     ///   ├─ MageUnit   (SpriteRenderer + Animator - Monk Idle)
     ///   └─ FirePoint  (빈 Transform - 마법이 생성되는 위치, 보통 Monk 손 근처)
     /// </summary>
-    public class MageTower : MonoBehaviour
+    public class MageTower : MonoBehaviour, ISelectableTower
     {
         [Header("스탯")]
         [SerializeField] private float range = 4.5f;
