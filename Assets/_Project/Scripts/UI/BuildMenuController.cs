@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using KRTD.Combat;
+using KRTD.Game;
 using KRTD.Map;
 
 namespace KRTD.UI
@@ -30,6 +31,11 @@ namespace KRTD.UI
 
         [Tooltip("판매 버튼 아이콘.")]
         [SerializeField] private Sprite sellIcon;
+
+        [Header("경제")]
+        [Tooltip("타워 판매 시 누적 투자 금액의 몇 % 를 환급할지 (0~1). 예: 0.7 = 70% 환급.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float sellRefundRate = 0.7f;
 
         private RadialMenu currentMenu;
         private Camera mainCam;
@@ -72,8 +78,9 @@ namespace KRTD.UI
                 var captured = data;
                 entries.Add(new RadialMenu.Entry(captured.icon, () =>
                 {
+                    if (!TrySpendGold(captured.cost, "건설")) return;
                     spot.PlaceBuilding(captured);
-                }));
+                }, cost: captured.cost));
             }
 
             OpenMenuAt(spot.CenterWorld, entries);
@@ -97,20 +104,53 @@ namespace KRTD.UI
                 var next = current.nextUpgrade;
                 entries.Add(new RadialMenu.Entry(upgradeIcon, () =>
                 {
+                    if (!TrySpendGold(next.cost, "업그레이드")) return;
                     spot.ReplaceBuilding(next);
-                }, overrideAngleDeg: UpgradeAngleDeg));
+                }, overrideAngleDeg: UpgradeAngleDeg, cost: next.cost));
             }
 
-            // 판매 (6시 고정)
+            // 판매 (6시 고정). 환급 예상액을 음수 cost 로 넘겨 라벨에 "+N" 으로 표시.
+            int sellRefund = Mathf.RoundToInt(spot.TotalInvested * sellRefundRate);
             entries.Add(new RadialMenu.Entry(sellIcon, () =>
             {
-                spot.RemoveBuilding();
-            }, overrideAngleDeg: SellAngleDeg));
+                SellSpot(spot);
+            }, overrideAngleDeg: SellAngleDeg, cost: -sellRefund));
 
             // 메뉴를 여는 동안 타워의 사거리 원을 표시
             ShowTowerRange(spot);
 
             OpenMenuAt(spot.CenterWorld, entries);
+        }
+
+        /// <summary>
+        /// 골드를 차감하고 성공 여부를 반환. GameState 가 없으면 경제 무시(true 반환).
+        /// 부족 시 콘솔 로그만 남기고 false.
+        /// </summary>
+        private bool TrySpendGold(int amount, string actionLabel)
+        {
+            if (amount <= 0) return true;
+            var state = GameState.Instance;
+            if (state == null) return true;
+            if (state.SpendGold(amount)) return true;
+
+            Debug.Log($"[BuildMenuController] {actionLabel} 골드 부족 — 필요: {amount}, 현재: {state.Gold}");
+            return false;
+        }
+
+        /// <summary>
+        /// 스팟의 누적 투자 금액의 sellRefundRate 만큼 환급하고 건물을 제거한다.
+        /// </summary>
+        private void SellSpot(BuildSpot spot)
+        {
+            if (spot == null) return;
+
+            var state = GameState.Instance;
+            if (state != null)
+            {
+                int refund = Mathf.RoundToInt(spot.TotalInvested * sellRefundRate);
+                if (refund > 0) state.AddGold(refund);
+            }
+            spot.RemoveBuilding();
         }
 
         private void ShowTowerRange(BuildSpot spot)

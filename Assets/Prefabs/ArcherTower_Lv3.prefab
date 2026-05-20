@@ -48,7 +48,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.ArcherTower
   range: 6
   attackInterval: 0.8
-  damage: 8
+  damage: 20
   arrowPrefab: {fileID: 4185045966540784182, guid: 70c9a80d62cd9ff488f20aecab023f4c, type: 3}
   firePoint: {fileID: 5930100000000000012}
   unitAnimator: {fileID: 5930100000000000010}

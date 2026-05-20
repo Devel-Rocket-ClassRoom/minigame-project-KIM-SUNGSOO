@@ -35,6 +35,8 @@ namespace KRTD.Map
         [Header("상태")]
         [SerializeField] private bool isOccupied = false;
         [SerializeField] private BuildingData currentBuilding;
+        [Tooltip("이 스팟에 누적된 투자 금액 (건설 + 모든 업그레이드 비용 합). 판매 환급 계산용. 씬에 미리 배치한 타워는 인스펙터에서 직접 세팅 가능.")]
+        [SerializeField] private int totalInvested;
 
         // 런타임 인스턴스 추적 (직렬화 안 함)
         [System.NonSerialized] private GameObject currentBuildingInstance;
@@ -43,6 +45,8 @@ namespace KRTD.Map
         public Vector2Int Size => size;
         public Vector3 CenterWorld => transform.position;
         public BuildingData CurrentBuilding => currentBuilding;
+        /// <summary>이 스팟에 지금까지 투입된 누적 골드. 판매 환급 계산에 사용된다.</summary>
+        public int TotalInvested => totalInvested;
 
         /// <summary>
         /// 현재 설치된 건물 인스턴스의 컴포넌트(또는 인터페이스 구현체)를 가져온다.
@@ -64,6 +68,7 @@ namespace KRTD.Map
 
         /// <summary>
         /// 데이터 기반으로 건물을 설치한다.
+        /// 신규 건설이므로 누적 투자 금액을 data.cost 로 초기화한다.
         /// </summary>
         public bool PlaceBuilding(BuildingData data)
         {
@@ -71,29 +76,38 @@ namespace KRTD.Map
 
             isOccupied = true;
             currentBuilding = data;
+            totalInvested = data.cost;
             ApplyBuildingVisual(data);
             return true;
         }
 
         /// <summary>
         /// 설치된 건물을 제거하고 빈 스팟으로 되돌린다.
+        /// 누적 투자 금액도 0 으로 리셋된다 (판매 후 새로 지으면 처음부터 카운트).
         /// </summary>
         public void RemoveBuilding()
         {
             isOccupied = false;
             currentBuilding = null;
+            totalInvested = 0;
             ClearBuildingVisual();
         }
 
         /// <summary>
         /// 현재 건물을 즉시 다른 단계로 교체한다 (업그레이드 등).
         /// PlaceBuilding 은 isOccupied 일 때 거부하므로 업그레이드 경로용 분리 메서드.
+        /// 이전 투자 금액을 보존한 채로 next.cost 를 누적한다.
         /// </summary>
         public bool ReplaceBuilding(BuildingData next)
         {
             if (next == null) return false;
-            RemoveBuilding();
-            return PlaceBuilding(next);
+
+            int previousInvested = totalInvested;
+            RemoveBuilding();              // totalInvested 가 0 으로 초기화됨
+            if (!PlaceBuilding(next))      // PlaceBuilding 이 totalInvested = next.cost 로 세팅
+                return false;
+            totalInvested = previousInvested + next.cost;
+            return true;
         }
 
         private void ApplyBuildingVisual(BuildingData data)
