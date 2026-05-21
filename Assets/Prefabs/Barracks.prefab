@@ -80,6 +80,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.BarracksController
   soldierPrefab: {fileID: 4816132366513536146, guid: 4b9b194ba0039734b84dd73695a467bf, type: 3}
+  soldierCount: 3
+  useNearestPath: 1
+  path: {fileID: 0}
+  formationSpacing: 0.4
+  deploymentRange: 5
+  rangeGizmoColor: {r: 0.3, g: 0.6, b: 1, a: 0.85}
   spawnPoints:
   - {fileID: 6347815713193333944}
   - {fileID: 2376447423226717750}
