@@ -18,6 +18,8 @@ namespace KRTD.Combat
         [SerializeField] private float range = 4.5f;
         [SerializeField] private float attackInterval = 1.6f;
         [SerializeField] private float damage = 5f;
+        [Tooltip("이 타워의 공격 유형. 기본 Magic.")]
+        [SerializeField] private AttackType attackType = AttackType.Magic;
 
         [Header("발사")]
         [Tooltip("발사할 마법 투사체 프리팹")]
@@ -136,7 +138,7 @@ namespace KRTD.Combat
 
             Vector3 spawnPos = firePoint != null ? firePoint.position : transform.position;
             Magic projectile = Instantiate(magicPrefab, spawnPos, Quaternion.identity);
-            projectile.Init(target, damage);
+            projectile.Init(target, damage, attackType);
 
             if (unitAnimator != null && !string.IsNullOrEmpty(castTrigger))
             {

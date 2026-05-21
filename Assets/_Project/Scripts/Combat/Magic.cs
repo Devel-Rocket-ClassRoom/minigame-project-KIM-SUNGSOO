@@ -20,16 +20,21 @@ namespace KRTD.Combat
         [Tooltip("비행 중 자체 회전 속도(도/초). 0이면 회전하지 않는다.")]
         [SerializeField] private float spinSpeed = 360f;
 
-        private Enemy target;
+        private IDamageable target;
         private float damage;
+        private AttackType attackType = AttackType.Magic;
         private float spawnedAt;
 
-        public void Init(Enemy target, float damage)
+        public void Init(IDamageable target, float damage, AttackType attackType)
         {
             this.target = target;
             this.damage = damage;
+            this.attackType = attackType;
             spawnedAt = Time.time;
         }
+
+        /// <summary>구버전 호환 — 공격 유형 미지정 시 Magic.</summary>
+        public void Init(IDamageable target, float damage) => Init(target, damage, AttackType.Magic);
 
         private void Update()
         {
@@ -39,7 +44,8 @@ namespace KRTD.Combat
                 return;
             }
 
-            if (target == null || target.IsDead)
+            // 인터페이스 참조는 Unity 의 == null 오버로드를 통과 못하므로 UnityEngine.Object 캐스트로 명시 체크
+            if (target == null || (target as Object) == null || target.IsDead)
             {
                 Destroy(gameObject);
                 return;
@@ -50,7 +56,7 @@ namespace KRTD.Combat
 
             if (distSq <= hitRadius * hitRadius)
             {
-                target.TakeDamage(damage);
+                target.TakeDamage(damage, attackType);
                 Destroy(gameObject);
                 return;
             }

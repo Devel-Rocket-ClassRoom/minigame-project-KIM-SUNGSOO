@@ -18,6 +18,8 @@ namespace KRTD.Combat
         [SerializeField] private float range = 4f;
         [SerializeField] private float attackInterval = 1.2f;
         [SerializeField] private float damage = 3f;
+        [Tooltip("이 타워의 공격 유형. 기본 Physical.")]
+        [SerializeField] private AttackType attackType = AttackType.Physical;
 
         [Header("발사")]
         [Tooltip("발사할 화살 프리팹")]
@@ -141,7 +143,7 @@ namespace KRTD.Combat
 
             Vector3 spawnPos = firePoint != null ? firePoint.position : transform.position;
             Arrow arrow = Instantiate(arrowPrefab, spawnPos, Quaternion.identity);
-            arrow.Init(target, damage);
+            arrow.Init(target, damage, attackType);
 
             // 발사 애니메이션 트리거 (있으면)
             if (unitAnimator != null && !string.IsNullOrEmpty(shootTrigger))

@@ -10,20 +10,20 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4c8aab95672c676408fa71d60cc5e745, type: 3}
-  m_Name: BlackArcher
+  m_Name: Warrior
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.EnemyData
   enemyName: Enemy
-  enemyPrefab: {fileID: 8094173641835900607, guid: f8738e97b1b2d69409c82a2eb5a27ed5, type: 3}
-  maxHp: 20
-  moveSpeed: 1.5
+  enemyPrefab: {fileID: 8094173641835900607, guid: a1bbb1b8cb61eb14ab7728182ce08f74, type: 3}
+  maxHp: 40
+  moveSpeed: 1
   goldReward: 20
   lifeDamage: 1
   physicalDefense: 0
   magicDefense: 0
   minDamage: 1
-  attackDamage: 10
-  attackRange: 1.5
-  detectionRange: 2.5
+  attackDamage: 15
+  attackRange: 1.2
+  detectionRange: 2
   attackInterval: 1
   attackType: 0
-  arrowPrefab: {fileID: 4185045966540784182, guid: 4404009741cc1184c843f03ce67add81, type: 3}
+  arrowPrefab: {fileID: 0}

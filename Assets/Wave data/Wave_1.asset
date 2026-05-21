@@ -14,7 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.WaveData
   waveName: Wave 1
   entries:
-  - enemy: {fileID: 11400000, guid: 37c6d242accdfe3448001905141214cf, type: 2}
+  - enemy: {fileID: 11400000, guid: a36064dfd1940d746b5a615ccd7989ad, type: 2}
     count: 10
     interval: 2
+  - enemy: {fileID: 11400000, guid: 37c6d242accdfe3448001905141214cf, type: 2}
+    count: 5
+    interval: 5
   startDelay: 2

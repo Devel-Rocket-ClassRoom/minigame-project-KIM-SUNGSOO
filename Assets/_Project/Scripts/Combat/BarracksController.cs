@@ -30,6 +30,12 @@ namespace KRTD.Combat
         [Min(1)]
         [SerializeField] private int soldierCount = 3;
 
+        [Header("티어 (배럭 Lv별 보병 강화)")]
+        [Tooltip("스폰된 보병의 HP 배율. Lv1=1.0, Lv2=1.5, Lv3=2.0 권장.")]
+        [SerializeField] private float soldierHpMultiplier = 1f;
+        [Tooltip("스폰된 보병의 데미지 배율. Lv1=1.0, Lv2=1.5, Lv3=2.0 권장.")]
+        [SerializeField] private float soldierDamageMultiplier = 1f;
+
         [Header("경로 기반 배치 (권장)")]
         [Tooltip("켜져 있으면 EnemyPath 의 가장 가까운 지점을 자동으로 찾아 그 주변에 보병을 분산 배치한다.")]
         [SerializeField] private bool useNearestPath = true;
@@ -181,6 +187,10 @@ namespace KRTD.Combat
         {
             var pos = resolvedSpawnPositions[slot];
             var soldier = Instantiate(soldierPrefab, pos, Quaternion.identity);
+            // 티어 배율 적용 (Lv1 은 1.0/1.0 이라 변화 없음, Lv2/Lv3 에서 강화됨)
+            soldier.ApplyTier(soldierHpMultiplier, soldierDamageMultiplier);
+            // 랠리는 스폰 위치 (보병이 적 추격 후 복귀할 자리)
+            soldier.SetRallyPoint(pos);
             int capturedSlot = slot;
             soldier.OnDeath += _ => StartCoroutine(RespawnAfterDelay(capturedSlot));
             activeSoldiers[slot] = soldier;

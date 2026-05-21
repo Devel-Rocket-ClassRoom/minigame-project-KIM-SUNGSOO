@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 8236720512588300621}
   - component: {fileID: 4816132366513536146}
   m_Layer: 0
-  m_Name: Warriar
+  m_Name: Warriar_Lv3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -45,12 +45,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b78e1cecd179b1743ad72324b1013475, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.Soldier
-  maxHp: 30
-  damage: 10
+  maxHp: 100
+  damage: 20
   attackInterval: 1
   attackRange: 0.8
   attackType: 0
-  physicalDefense: 0
+  physicalDefense: 5
   magicDefense: 0
   minDamage: 1
   detectionRange: 2
@@ -145,7 +145,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 6
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 7384290322352760091, guid: 63555c658eb534f48acbb1ba682fbec3, type: 3}
+  m_Sprite: {fileID: 7384290322352760091, guid: f9330e5de94a14c6ba6583d83d65ef08, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -165,7 +165,7 @@ Animator:
   m_GameObject: {fileID: 6244488224646473413}
   m_Enabled: 1
   m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 9100000, guid: aa1112b337436413a9e3f0f07d8475c2, type: 2}
+  m_Controller: {fileID: 9100000, guid: f172b4eeb829d4ec2b9b7a42f3efa3ef, type: 2}
   m_CullingMode: 0
   m_UpdateMode: 0
   m_ApplyRootMotion: 0
