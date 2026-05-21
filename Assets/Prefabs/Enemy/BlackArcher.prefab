@@ -164,4 +164,15 @@ MonoBehaviour:
   moveSpeed: 0.5
   goldReward: 5
   lifeDamage: 1
+  physicalDefense: 0
+  magicDefense: 0
+  minDamage: 1
+  attackDamage: 0
+  attackRange: 0.8
+  attackInterval: 1
+  attackType: 0
+  arrowPrefab: {fileID: 4185045966540784182, guid: 4404009741cc1184c843f03ce67add81, type: 3}
   waypointReachRadius: 0.05
+  animator: {fileID: 5388200976543838731}
+  isAttackingBool: isAttacking
+  deathTrigger: 

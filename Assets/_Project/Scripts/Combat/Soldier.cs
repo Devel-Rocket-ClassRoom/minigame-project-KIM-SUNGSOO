@@ -13,7 +13,7 @@ namespace KRTD.Combat
     ///
     /// BarracksController 가 인스턴스화 → OnDeath 이벤트로 부활 신호를 받는다.
     /// </summary>
-    public class Soldier : MonoBehaviour
+    public class Soldier : MonoBehaviour, IDamageable
     {
         [Header("스탯")]
         [SerializeField] private float maxHp = 8f;
@@ -21,11 +21,39 @@ namespace KRTD.Combat
         [SerializeField] private float attackInterval = 1.0f;
         [Tooltip("이 거리 안의 적만 공격 대상으로 한다.")]
         [SerializeField] private float attackRange = 1.2f;
+        [Tooltip("이 보병의 공격 유형. 기본 Physical.")]
+        [SerializeField] private AttackType attackType = AttackType.Physical;
+
+        [Header("방어력 (공격 유형별 flat 차감)")]
+        [SerializeField] private float physicalDefense = 0f;
+        [SerializeField] private float magicDefense = 0f;
+        [SerializeField] private float minDamage = 1f;
+
+        [Header("이동/탐지")]
+        [Tooltip("이 거리 안의 적을 발견하면 그 적을 향해 이동한다.")]
+        [SerializeField] private float detectionRange = 4f;
+        [Tooltip("적을 향해 이동하거나 랠리로 복귀할 때 사용하는 속도.")]
+        [SerializeField] private float moveSpeed = 2f;
+        [Tooltip("랠리(스폰) 위치 근처 이만큼 안이면 복귀 완료로 본다.")]
+        [SerializeField] private float rallyArriveRadius = 0.1f;
+
+        [Header("좌우 방향 반전")]
+        [Tooltip("진행/타겟 방향에 따라 좌우 반전할 시각 Transform (보통 자식 Body). " +
+            "비워두면 자기 자신 transform. 기본 스프라이트가 오른쪽(+X) 향한다고 가정.")]
+        [SerializeField] private Transform visualRoot;
 
         [Header("애니메이션 (선택)")]
-        [Tooltip("공격/사망 트리거를 호출할 Animator. 비워두면 무시.")]
+        [Tooltip("Idle / Run / Attack 세 상태를 가진 Animator. 비워두면 무시.")]
         [SerializeField] private Animator animator;
-        [SerializeField] private string attackTrigger = "Attack1";
+        [Tooltip("이동 중(추격 또는 랠리 복귀) 일 때 true 가 되는 Bool 파라미터 이름. " +
+            "Idle ↔ Run 전환 조건.")]
+        [SerializeField] private string runBool = "isRunning";
+        [Tooltip("공격 사거리 안에서 교전 중일 때 true 가 되는 Bool 파라미터 이름. " +
+            "Idle/Run ↔ Attack 전환 조건.")]
+        [SerializeField] private string attackBool = "isAttacking";
+        [Tooltip("(선택) 매 공격 스윙마다 Trigger 도 발사하고 싶을 때 이름 지정. " +
+            "Attack state 가 루핑이면 비워둬도 됨.")]
+        [SerializeField] private string attackTrigger = "";
         [SerializeField] private string deathTrigger = "Death";
 
         [Header("사망 처리")]
@@ -36,6 +64,8 @@ namespace KRTD.Combat
         private float nextAttackTime;
         private Enemy currentTarget;
         private bool isDead;
+        private Vector3 rallyPoint;
+        private bool hasRallyPoint;
 
         public bool IsDead => isDead;
         public Vector3 Position => transform.position;
@@ -48,34 +78,122 @@ namespace KRTD.Combat
         private void Awake()
         {
             currentHp = maxHp;
+            // 스폰 위치를 자동으로 rallyPoint 로 설정 (BarracksController 가 SetRallyPoint 로 덮어쓸 수 있음).
+            if (!hasRallyPoint)
+            {
+                rallyPoint = transform.position;
+                hasRallyPoint = true;
+            }
+        }
+
+        /// <summary>BarracksController 등 외부에서 명시적으로 랠리 위치를 지정.</summary>
+        public void SetRallyPoint(Vector3 worldPos)
+        {
+            rallyPoint = worldPos;
+            hasRallyPoint = true;
+        }
+
+        /// <summary>
+        /// 배럭 티어별 스탯 배율 적용. BarracksController 가 스폰 직후 1회 호출.
+        /// HP/데미지 가 인스펙터 기본값에서 배율만큼 증폭된다.
+        /// </summary>
+        public void ApplyTier(float hpMultiplier, float damageMultiplier)
+        {
+            maxHp = Mathf.Max(1f, maxHp * hpMultiplier);
+            currentHp = maxHp;
+            damage = Mathf.Max(0f, damage * damageMultiplier);
         }
 
         private void Update()
         {
             if (isDead) return;
 
-            // 대상 갱신: null/사망/사거리 이탈이면 다시 찾는다.
-            if (currentTarget == null || currentTarget.IsDead || !IsInRange(currentTarget))
-                currentTarget = FindNearestEnemyInRange();
+            // 1. 탐지 범위 내 적 갱신 (없거나 사망했거나 탐지 이탈이면 재탐색).
+            if (currentTarget == null || currentTarget.IsDead || !IsInDetection(currentTarget))
+                currentTarget = FindNearestEnemyInDetection();
 
-            if (currentTarget == null) return;
+            bool nextIsAttacking = false;
+            bool nextIsRunning = false;
 
-            // 정해진 간격마다 공격
-            if (Time.time >= nextAttackTime)
+            if (currentTarget != null)
             {
-                Attack(currentTarget);
-                nextAttackTime = Time.time + attackInterval;
+                // 항상 적 방향을 본다 (이동 중이든 공격 중이든)
+                UpdateFacing(currentTarget.Position.x - transform.position.x);
+
+                if (IsInAttackRange(currentTarget))
+                {
+                    // 2. 공격 범위 안: 멈춰서 공격
+                    nextIsAttacking = true;
+                    if (Time.time >= nextAttackTime)
+                    {
+                        Attack(currentTarget);
+                        nextAttackTime = Time.time + attackInterval;
+                    }
+                }
+                else
+                {
+                    // 3. 탐지는 됐지만 사거리 밖 → 적을 향해 이동
+                    nextIsRunning = true;
+                    MoveToward(currentTarget.Position);
+                }
             }
+            else if (hasRallyPoint)
+            {
+                // 4. 탐지 적 없음 → 랠리로 복귀
+                Vector3 toRally = rallyPoint - transform.position;
+                if (toRally.sqrMagnitude > rallyArriveRadius * rallyArriveRadius)
+                {
+                    nextIsRunning = true;
+                    UpdateFacing(toRally.x);
+                    MoveToward(rallyPoint);
+                }
+                // 랠리 도착 → Idle (둘 다 false 상태). facing 은 마지막 방향 유지.
+            }
+
+            // Animator 동기화: 매 프레임 정확한 상태로
+            if (animator != null)
+            {
+                if (!string.IsNullOrEmpty(runBool)) animator.SetBool(runBool, nextIsRunning);
+                if (!string.IsNullOrEmpty(attackBool)) animator.SetBool(attackBool, nextIsAttacking);
+            }
+        }
+
+        private void MoveToward(Vector3 worldPos)
+        {
+            Vector3 toTarget = worldPos - transform.position;
+            float dist = toTarget.magnitude;
+            if (dist < 1e-4f) return;
+
+            float step = moveSpeed * Time.deltaTime;
+            transform.position += toTarget / dist * Mathf.Min(step, dist);
+        }
+
+        /// <summary>
+        /// 진행/타겟 방향의 X 부호로 visualRoot 의 localScale.x 를 ±|x| 로 설정.
+        /// 기본 스프라이트가 오른쪽 향한다고 가정 — 음수 X 면 좌우반전.
+        /// </summary>
+        private void UpdateFacing(float dirX)
+        {
+            if (Mathf.Abs(dirX) < 1e-4f) return;
+            Transform t = visualRoot != null ? visualRoot : transform;
+            Vector3 scale = t.localScale;
+            float abs = Mathf.Abs(scale.x);
+            scale.x = dirX > 0 ? abs : -abs;
+            t.localScale = scale;
         }
 
         /// <summary>
         /// 외부(적 등)에서 데미지를 입힌다.
+        /// 공격 유형에 따라 방어력(flat) 적용 후 minDamage 로 클램프.
         /// </summary>
-        public void TakeDamage(float amount)
+        public void TakeDamage(float amount, AttackType attackType)
         {
             if (isDead) return;
 
-            currentHp -= amount;
+            float defense = attackType == AttackType.Magic ? magicDefense : physicalDefense;
+            float effective = Mathf.Max(minDamage, amount - defense);
+
+            currentHp -= effective;
             if (currentHp <= 0f)
             {
                 currentHp = 0f;
@@ -83,12 +201,15 @@ namespace KRTD.Combat
             }
         }
 
+        /// <summary>공격 유형이 명시되지 않은 호출 호환용. Physical 로 간주.</summary>
+        public void TakeDamage(float amount) => TakeDamage(amount, AttackType.Physical);
+
         private void Attack(Enemy target)
         {
             if (animator != null && !string.IsNullOrEmpty(attackTrigger))
                 animator.SetTrigger(attackTrigger);
 
-            target.TakeDamage(damage);
+            target.TakeDamage(damage, attackType);
         }
 
         private void Die()
@@ -106,15 +227,22 @@ namespace KRTD.Combat
             Destroy(gameObject, Mathf.Max(0f, deathLingerSeconds));
         }
 
-        private bool IsInRange(Enemy enemy)
+        private bool IsInAttackRange(Enemy enemy)
         {
             return (enemy.Position - transform.position).sqrMagnitude <= attackRange * attackRange;
         }
 
-        private Enemy FindNearestEnemyInRange()
+        private bool IsInDetection(Enemy enemy)
+        {
+            float r = Mathf.Max(detectionRange, attackRange);
+            return (enemy.Position - transform.position).sqrMagnitude <= r * r;
+        }
+
+        private Enemy FindNearestEnemyInDetection()
         {
             Vector3 origin = transform.position;
-            float rangeSq = attackRange * attackRange;
+            float r = Mathf.Max(detectionRange, attackRange);
+            float rangeSq = r * r;
             Enemy nearest = null;
             float bestDistSq = float.MaxValue;
 

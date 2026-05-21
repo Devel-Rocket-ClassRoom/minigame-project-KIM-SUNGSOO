@@ -12,7 +12,7 @@ namespace KRTD.Combat
     ///   EnemySpawner.Spawn(...) → Instantiate → Enemy.Init(data, path)
     ///   Init 이 호출되지 않은 경우(에디터 직접 배치) 인스펙터 fallback 값으로 동작.
     /// </summary>
-    public class Enemy : MonoBehaviour
+    public class Enemy : MonoBehaviour, IDamageable
     {
         [Header("데이터 (없으면 아래 fallback 사용)")]
         [SerializeField] private EnemyData data;
@@ -22,15 +22,42 @@ namespace KRTD.Combat
         [SerializeField] private float moveSpeed = 1.5f;
         [SerializeField] private int goldReward = 5;
         [SerializeField] private int lifeDamage = 1;
+        [SerializeField] private float physicalDefense = 0f;
+        [SerializeField] private float magicDefense = 0f;
+        [SerializeField] private float minDamage = 1f;
+        [SerializeField] private float attackDamage = 0f;
+        [SerializeField] private float attackRange = 0.8f;
+        [SerializeField] private float detectionRange = 2.5f;
+        [SerializeField] private float attackInterval = 1f;
+        [SerializeField] private AttackType attackType = AttackType.Physical;
+        [Tooltip("원거리 공격용 투사체 프리팹. 비어있으면 근접(즉시) 데미지.")]
+        [SerializeField] private Arrow arrowPrefab;
 
         [Header("이동")]
         [Tooltip("웨이포인트에 이만큼 가까워지면 다음 점으로 진행")]
         [SerializeField] private float waypointReachRadius = 0.05f;
 
+        [Header("애니메이션 (선택)")]
+        [Tooltip("Run / Attack 두 상태를 가진 Animator. 비워두면 무시.")]
+        [SerializeField] private Animator animator;
+        [Tooltip("Run ⇄ Attack 전환용 Bool 파라미터 이름. 전투 중이면 true, 아니면 false.")]
+        [SerializeField] private string isAttackingBool = "isAttacking";
+        [Tooltip("사망 시 호출할 Trigger 파라미터 이름. 비워두면 무시.")]
+        [SerializeField] private string deathTrigger = "";
+
+        [Header("좌우 방향 반전")]
+        [Tooltip("진행 방향에 따라 좌우 반전할 시각 Transform (보통 자식 Body). " +
+            "비워두면 자기 자신 transform 사용. 기본 스프라이트가 오른쪽(+X) 향한다고 가정.")]
+        [SerializeField] private Transform visualRoot;
+
         private float currentHp;
         private EnemyPath path;
         private int nextWaypointIndex;
         private bool reachedEnd;
+
+        // 보병 공격 모드 상태
+        private Soldier currentSoldierTarget;
+        private float nextAttackTime;
 
         public bool IsDead => currentHp <= 0f;
         public Vector3 Position => transform.position;
@@ -66,12 +93,45 @@ namespace KRTD.Combat
 
         private void Update()
         {
-            if (IsDead || reachedEnd || path == null) return;
+            if (IsDead || reachedEnd) return;
+
+            // 1. 탐지범위 안 보병이 있으면 멈춤. 공격범위 안에 들어왔을 때만 실제 데미지.
+            //    공격력 0 인 적은 둘 다 패스 (그냥 지나가는 적).
+            bool engaging = false;
+            if (ResolveAttackDamage() > 0f)
+            {
+                if (currentSoldierTarget == null || currentSoldierTarget.IsDead || !IsSoldierInDetection(currentSoldierTarget))
+                    currentSoldierTarget = FindNearestSoldierInDetection();
+
+                if (currentSoldierTarget != null)
+                {
+                    engaging = true; // 탐지됨 → 무조건 멈춤
+                    UpdateFacing(currentSoldierTarget.Position.x - transform.position.x);
+
+                    if (IsSoldierInAttackRange(currentSoldierTarget) && Time.time >= nextAttackTime)
+                    {
+                        AttackSoldier(currentSoldierTarget);
+                        nextAttackTime = Time.time + ResolveAttackInterval();
+                    }
+                    // 탐지는 됐지만 아직 공격범위 밖이면 대기 (보병이 다가올 때까지)
+                }
+            }
+
+            // Run / Attack 전환을 Animator 에 알린다 (Attack 시 멈춰 있으므로 Run 루프가 어색하지 않게)
+            if (animator != null && !string.IsNullOrEmpty(isAttackingBool))
+                animator.SetBool(isAttackingBool, engaging);
+
+            if (engaging) return; // 전투 중엔 이동 안 함
+
+            // 2. 보병 없음 → 경로 따라 이동
+            if (path == null) return;
 
             Vector3 target = path.GetPoint(nextWaypointIndex);
             Vector3 toTarget = target - transform.position;
             float dist = toTarget.magnitude;
             float step = ResolveMoveSpeed() * Time.deltaTime;
+
+            UpdateFacing(toTarget.x);
 
             if (dist <= step + waypointReachRadius)
             {
@@ -89,11 +149,82 @@ namespace KRTD.Combat
             transform.position += toTarget / dist * step;
         }
 
-        public void TakeDamage(float damage)
+        /// <summary>
+        /// 진행 방향(또는 타겟 방향) 의 X 부호에 따라 visualRoot 의 localScale.x 를 ±|x| 로 설정.
+        /// 기본 스프라이트가 오른쪽 향한다고 가정 — 음수 X 면 좌우반전.
+        /// </summary>
+        private void UpdateFacing(float dirX)
+        {
+            if (Mathf.Abs(dirX) < 1e-4f) return; // 거의 0 방향은 무시 (현재 facing 유지)
+            Transform t = visualRoot != null ? visualRoot : transform;
+            Vector3 scale = t.localScale;
+            float abs = Mathf.Abs(scale.x);
+            scale.x = dirX > 0 ? abs : -abs;
+            t.localScale = scale;
+        }
+
+        // --- 보병 공격 -------------------------------------------------------
+
+        private bool IsSoldierInAttackRange(Soldier s)
+        {
+            float r = ResolveAttackRange();
+            return (s.Position - transform.position).sqrMagnitude <= r * r;
+        }
+
+        private bool IsSoldierInDetection(Soldier s)
+        {
+            float r = ResolveDetectionRange();
+            return (s.Position - transform.position).sqrMagnitude <= r * r;
+        }
+
+        private Soldier FindNearestSoldierInDetection()
+        {
+            Vector3 origin = transform.position;
+            float r = ResolveDetectionRange();
+            float rangeSq = r * r;
+            Soldier nearest = null;
+            float bestDistSq = float.MaxValue;
+
+            // NOTE: 매 프레임 FindObjectsByType 는 비효율적. 보병 수 늘면 매니저 등록 방식으로 교체.
+            Soldier[] soldiers = Object.FindObjectsByType<Soldier>(FindObjectsSortMode.None);
+            foreach (var s in soldiers)
+            {
+                if (s == null || s.IsDead) continue;
+                float d = (s.Position - origin).sqrMagnitude;
+                if (d > rangeSq) continue;
+                if (d < bestDistSq) { bestDistSq = d; nearest = s; }
+            }
+            return nearest;
+        }
+
+        private void AttackSoldier(Soldier s)
+        {
+            Arrow prefab = ResolveArrowPrefab();
+            if (prefab != null)
+            {
+                // 원거리: 투사체 발사. 화살이 보병에게 도달하면 그 시점에 데미지가 들어간다.
+                var arrow = Instantiate(prefab, transform.position, Quaternion.identity);
+                arrow.Init(s, ResolveAttackDamage(), ResolveAttackType());
+            }
+            else
+            {
+                // 근접: 즉시 데미지.
+                s.TakeDamage(ResolveAttackDamage(), ResolveAttackType());
+            }
+        }
+
+        /// <summary>
+        /// 데미지 적용. 공격 유형에 따라 방어력(flat 차감) 적용 후 최소 데미지로 클램프.
+        /// 식: effective = max(minDamage, damage - defense(attackType))
+        /// </summary>
+        public void TakeDamage(float damage, AttackType attackType)
         {
             if (IsDead || reachedEnd) return;
 
-            currentHp -= damage;
+            float defense = ResolveDefense(attackType);
+            float effective = Mathf.Max(ResolveMinDamage(), damage - defense);
+
+            currentHp -= effective;
             if (currentHp <= 0f)
             {
                 currentHp = 0f;
@@ -101,13 +232,18 @@ namespace KRTD.Combat
             }
         }
 
+        /// <summary>공격 유형이 명시되지 않은 외부 호출 호환용. Physical 로 간주.</summary>
+        public void TakeDamage(float damage) => TakeDamage(damage, AttackType.Physical);
+
         private void Die()
         {
             // 처치 보상.
             var state = GameState.Instance;
             if (state != null) state.AddGold(ResolveGoldReward());
 
-            // TODO: 사망 연출 (애니메이터 트리거, 파티클 등)
+            if (animator != null && !string.IsNullOrEmpty(deathTrigger))
+                animator.SetTrigger(deathTrigger);
+
             Destroy(gameObject);
         }
 
@@ -133,11 +269,46 @@ namespace KRTD.Combat
             moveSpeed = data.moveSpeed;
             goldReward = data.goldReward;
             lifeDamage = data.lifeDamage;
+            physicalDefense = data.physicalDefense;
+            magicDefense = data.magicDefense;
+            minDamage = data.minDamage;
+            attackDamage = data.attackDamage;
+            attackRange = data.attackRange;
+            detectionRange = data.detectionRange;
+            attackInterval = data.attackInterval;
+            attackType = data.attackType;
+            arrowPrefab = data.arrowPrefab;
         }
 
         private float ResolveMaxHp() => data != null ? data.maxHp : maxHp;
         private float ResolveMoveSpeed() => data != null ? data.moveSpeed : moveSpeed;
         private int ResolveGoldReward() => data != null ? data.goldReward : goldReward;
         private int ResolveLifeDamage() => data != null ? data.lifeDamage : lifeDamage;
+        private float ResolveMinDamage() => data != null ? data.minDamage : minDamage;
+        private float ResolveAttackDamage() => data != null ? data.attackDamage : attackDamage;
+        private float ResolveAttackRange() => data != null ? data.attackRange : attackRange;
+        private float ResolveDetectionRange()
+        {
+            float detect = data != null ? data.detectionRange : detectionRange;
+            float atk = ResolveAttackRange();
+            // detectionRange 가 0 이거나 attackRange 보다 작으면 attackRange 와 동일하게 (즉시 공격 모드)
+            return detect < atk ? atk : detect;
+        }
+        private float ResolveAttackInterval() => data != null ? data.attackInterval : attackInterval;
+        private AttackType ResolveAttackType() => data != null ? data.attackType : attackType;
+        private Arrow ResolveArrowPrefab() => data != null && data.arrowPrefab != null ? data.arrowPrefab : arrowPrefab;
+
+        private float ResolveDefense(AttackType type)
+        {
+            switch (type)
+            {
+                case AttackType.Physical:
+                    return data != null ? data.physicalDefense : physicalDefense;
+                case AttackType.Magic:
+                    return data != null ? data.magicDefense : magicDefense;
+                default:
+                    return 0f;
+            }
+        }
     }
 }

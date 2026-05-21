@@ -82,8 +82,8 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 50
   m_MaskInteraction: 0
-  m_Sprite: {fileID: -6386518860914480035, guid: 16386dc28e16143d6a8131b104024556, type: 3}
-  m_Color: {r: 0.7, g: 0.5, b: 1, a: 1}
+  m_Sprite: {fileID: -4641516227613644353, guid: 0fb3704cb47b345c3bc3d5afcf150930, type: 3}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -102,7 +102,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b8e2c4d3e5f60718a2b3c4d5e6f70819, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.Magic
   speed: 10
   hitRadius: 0.2

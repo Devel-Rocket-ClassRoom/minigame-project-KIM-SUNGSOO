@@ -15,5 +15,5 @@ MonoBehaviour:
   buildingName: ArcherTower_Lv2
   icon: {fileID: 7257567913506708742, guid: 72c22f22ea5e4488390ba536cd5ab98d, type: 3}
   buildingPrefab: {fileID: 4820100000000000001, guid: a72c4d1f3e528b1c7d9a4e5f6b7c8d02, type: 3}
-  cost: 120
+  cost: 110
   nextUpgrade: {fileID: 11400000, guid: b94e6f3a5d74ae2f9f1c6a7b8c9d0e03, type: 2}

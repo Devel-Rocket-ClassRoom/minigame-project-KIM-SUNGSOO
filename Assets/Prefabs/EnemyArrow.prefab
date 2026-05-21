@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 4450488033053964157}
   - component: {fileID: 4185045966540784182}
   m_Layer: 0
-  m_Name: Arrow
+  m_Name: EnemyArrow
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -83,7 +83,7 @@ SpriteRenderer:
   m_SortingOrder: 11
   m_MaskInteraction: 0
   m_Sprite: {fileID: -4346244404228752641, guid: c272e6d3dde6e4ad58af98df64cbaf46, type: 3}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.4, g: 0.4, b: 0.45, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -104,7 +104,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bbf90e1f1728b74babadbe1aa34ce0f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.Arrow
-  speed: 14
-  hitRadius: 0.15
-  lifeTime: 3
-  arcHeight: 0
+  speed: 5
+  hitRadius: 0.2
+  lifeTime: 4
+  arcHeight: 2

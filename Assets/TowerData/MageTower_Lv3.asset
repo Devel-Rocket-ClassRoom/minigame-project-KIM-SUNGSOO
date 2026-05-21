@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9c0aaa84acfac3e42aab93fc439a5119, type: 3}
-  m_Name: MageTower
+  m_Name: MageTower_Lv3
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Map.BuildingData
-  buildingName: MageTower
-  icon: {fileID: 4723107735738678597, guid: 7ba4178767e424c47b91888898a1fdc4, type: 3}
-  buildingPrefab: {fileID: 4731829056103928471, guid: d52a6f3b7c481e29f3d4a5b6c7d8e9f0, type: 3}
-  cost: 100
-  nextUpgrade: {fileID: 11400000, guid: 3108184499549a04884bda9d4f8b296f, type: 2}
+  buildingName: Building
+  icon: {fileID: 4723107735738678597, guid: 088c72b8c44664ef7ba139bf42990072, type: 3}
+  buildingPrefab: {fileID: 4731829056103928471, guid: 7813c8635ae8e544891ac3cf5ffaa857, type: 3}
+  cost: 220
+  nextUpgrade: {fileID: 0}
