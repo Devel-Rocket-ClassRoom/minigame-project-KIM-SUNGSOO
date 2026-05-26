@@ -106,15 +106,18 @@ namespace KRTD.Abilities
 
         private void ApplyTick()
         {
-            // 반경 안 모든 Collider2D 중 Enemy 만 골라 데미지.
-            var hits = Physics2D.OverlapCircleAll(transform.position, radius);
-            for (int i = 0; i < hits.Length; i++)
+            // 기존 타워들(ArcherTower/MageTower) 과 동일하게 FindObjectsByType + 거리 비교 방식.
+            // Physics2D.OverlapCircleAll 은 이 프로젝트의 적 셋업(콜라이더 미사용) 과 맞지 않는다.
+            Vector3 center = transform.position;
+            float rangeSq = radius * radius;
+
+            // NOTE: 매 틱 FindObjectsByType 은 비효율적. 적 수가 많아지면 EnemyManager 등록 방식으로.
+            var enemies = Object.FindObjectsByType<Enemy>(FindObjectsSortMode.None);
+            foreach (var e in enemies)
             {
-                var col = hits[i];
-                if (col == null) continue;
-                var enemy = col.GetComponent<Enemy>();
-                if (enemy == null || enemy.IsDead) continue;
-                enemy.TakeDamage(damagePerTick, attackType);
+                if (e == null || e.IsDead) continue;
+                if ((e.Position - center).sqrMagnitude > rangeSq) continue;
+                e.TakeDamage(damagePerTick, attackType);
             }
         }
 

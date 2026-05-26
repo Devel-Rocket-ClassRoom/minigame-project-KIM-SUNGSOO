@@ -12,8 +12,8 @@ namespace KRTD.Abilities
     public class LavaZoneAbility : SpecialAbility, IAbilityPreviewRadius
     {
         [Header("장판 형태")]
-        [Tooltip("장판 반경 (월드 단위). 미리보기 원과 OverlapCircle 반경에 모두 사용.")]
-        [SerializeField] private float radius = 1.8f;
+        [Tooltip("장판 반경 (월드 단위). 미리보기 원과 데미지 판정 반경에 모두 사용.")]
+        [SerializeField] private float radius = 1.5f;
 
         [Tooltip("총 지속 시간(초).")]
         [SerializeField] private float duration = 5f;
