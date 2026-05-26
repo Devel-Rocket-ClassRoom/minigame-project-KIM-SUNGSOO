@@ -44,6 +44,10 @@ namespace KRTD.UI
         // 관리 메뉴에서 선택 중인 타워. 사거리 원을 메뉴와 함께 끄기 위해 보관.
         private ISelectableTower selectedTower;
 
+        // 메뉴가 열려있는 동안 클릭을 막아둘 스팟. 메뉴 버튼을 빗나간 클릭이
+        // BuildSpot.OnMouseDown 으로 다시 들어와 메뉴가 재생성되는 것을 방지.
+        private BuildSpot openSpot;
+
         // 관리 메뉴 고정 위치 (도). 0 = 12시, 180 = 6시.
         private const float UpgradeAngleDeg = 0f;
         private const float SellAngleDeg = 180f;
@@ -83,7 +87,7 @@ namespace KRTD.UI
                 }, cost: captured.cost));
             }
 
-            OpenMenuAt(spot.CenterWorld, entries);
+            OpenMenuAt(spot, entries);
         }
 
         /// <summary>
@@ -119,7 +123,7 @@ namespace KRTD.UI
             // 메뉴를 여는 동안 타워의 사거리 원을 표시
             ShowTowerRange(spot);
 
-            OpenMenuAt(spot.CenterWorld, entries);
+            OpenMenuAt(spot, entries);
         }
 
         /// <summary>
@@ -182,9 +186,11 @@ namespace KRTD.UI
                 currentMenu.Close();
                 currentMenu = null;
             }
+            // 메뉴 인스턴스가 이미 사라졌거나 강제 종료된 경우에도 스팟은 다시 클릭 가능해야 한다.
+            ReleaseOpenSpot();
         }
 
-        private void OpenMenuAt(Vector3 worldPos, List<RadialMenu.Entry> entries)
+        private void OpenMenuAt(BuildSpot spot, List<RadialMenu.Entry> entries)
         {
             if (menuPrefab == null)
             {
@@ -193,22 +199,38 @@ namespace KRTD.UI
             }
             if (entries.Count == 0) return;
 
-            // 이미 열려있으면 즉시 정리
+            // 이미 열려있으면 즉시 정리. 이전 스팟이 비활성화된 채로 남지 않도록 콜라이더 복원.
             if (currentMenu != null)
             {
                 Destroy(currentMenu.gameObject);
                 currentMenu = null;
+                ReleaseOpenSpot();
             }
 
-            currentMenu = Instantiate(menuPrefab, worldPos, Quaternion.identity);
+            currentMenu = Instantiate(menuPrefab, spot.CenterWorld, Quaternion.identity);
             openedFrame = Time.frameCount;
+
+            // 메뉴가 떠 있는 동안에는 이 스팟의 클릭을 막는다.
+            openSpot = spot;
+            spot.SetClickable(false);
+
             currentMenu.Open(entries, onClosedCallback: () =>
             {
                 // 자기 자신이 정상 종료된 경우에만 참조 해제
                 currentMenu = null;
-                // 메뉴가 끝까지 닫힌 시점에 사거리 원도 함께 끈다
+                // 메뉴가 끝까지 닫힌 시점에 사거리 원과 스팟 콜라이더를 함께 되돌린다
                 HideTowerRange();
+                ReleaseOpenSpot();
             });
+        }
+
+        private void ReleaseOpenSpot()
+        {
+            if (openSpot != null)
+            {
+                openSpot.SetClickable(true);
+                openSpot = null;
+            }
         }
 
         private void Update()
