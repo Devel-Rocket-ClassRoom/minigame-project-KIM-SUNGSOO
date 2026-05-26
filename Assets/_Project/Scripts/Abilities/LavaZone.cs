@@ -20,6 +20,18 @@ namespace KRTD.Abilities
         [SerializeField] private float duration = 4f;
         [SerializeField] private AttackType attackType = AttackType.Magic;
 
+        [Header("시각요소 자동 스케일")]
+        [Tooltip("능력의 radius 가 바뀔 때 함께 균등 스케일될 자식 Transform. " +
+            "프리팹 안의 모든 시각요소(Puddle/Flame 등) 의 공통 부모로 두면 한 번에 맞춰진다. " +
+            "비워두면 스케일 동기화 없이 자식들이 원본 크기 그대로 보인다.")]
+        [SerializeField] private Transform visualRoot;
+
+        [Tooltip("visualRoot 가 localScale=1 일 때의 기준 반경. " +
+            "능력의 radius / referenceRadius 가 visualRoot 의 균등 스케일이 된다. " +
+            "예: 프리팹을 radius=1.8 기준으로 만들었으면 1.8 입력.")]
+        [Min(0.01f)]
+        [SerializeField] private float referenceRadius = 1.8f;
+
         [Header("기본 시각 (자식 비주얼이 없을 때 fallback)")]
         [Tooltip("LineRenderer 외곽선 색 (자동 생성될 때만 사용).")]
         [SerializeField] private Color fallbackOutlineColor = new Color(1f, 0.3f, 0.05f, 0.9f);
@@ -45,6 +57,7 @@ namespace KRTD.Abilities
             // 첫 틱은 곧바로 한 번 발생시켜 "들어서자마자 데미지" 체감을 준다.
             nextTickTime = Time.time;
 
+            ApplyVisualScale();
             EnsureFallbackOutline();
         }
 
@@ -57,6 +70,8 @@ namespace KRTD.Abilities
 
         private void Start()
         {
+            // Init 없이 인스펙터 배치된 경우에도 안전하게 시각 동기화.
+            ApplyVisualScale();
             EnsureFallbackOutline();
         }
 
@@ -91,6 +106,19 @@ namespace KRTD.Abilities
                 if (enemy == null || enemy.IsDead) continue;
                 enemy.TakeDamage(damagePerTick, attackType);
             }
+        }
+
+        /// <summary>
+        /// visualRoot 가 지정돼 있으면 radius / referenceRadius 배율로 균등 스케일.
+        /// 디자이너가 프리팹을 referenceRadius 기준으로 한 번만 맞춰 두면, 능력 인스펙터의
+        /// radius 가 바뀌어도 시각/판정이 자동으로 맞춰진다.
+        /// </summary>
+        private void ApplyVisualScale()
+        {
+            if (visualRoot == null) return;
+            if (referenceRadius <= 0.001f) return;
+            float scale = radius / referenceRadius;
+            visualRoot.localScale = new Vector3(scale, scale, 1f);
         }
 
         /// <summary>
