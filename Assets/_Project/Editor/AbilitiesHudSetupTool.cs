@@ -19,7 +19,7 @@ namespace KRTD.EditorTools
     ///   ├─ Abilities                       (런타임 로직 묶음 — 타일맵과 무관)
     ///   │  ├─ SpecialAbilityController
     ///   │  ├─ Ability_Reinforcement        (ReinforcementAbility)
-    ///   │  └─ Ability_MeteorShower         (MeteorShowerAbility)
+    ///   │  └─ Ability_LavaZone             (LavaZoneAbility)
     ///   └─ Ability HUD Canvas              (Screen Space - Overlay, 화면 고정)
     ///      └─ BottomRight (HorizontalLayoutGroup)
     ///         ├─ Btn_Reinforcement
@@ -27,7 +27,7 @@ namespace KRTD.EditorTools
     ///         │  ├─ Icon
     ///         │  ├─ CooldownMask (Filled Radial360)
     ///         │  └─ CooldownText (TMP)
-    ///         └─ Btn_MeteorShower          (동일 구조)
+    ///         └─ Btn_LavaZone              (동일 구조)
     ///
     /// 정책:
     ///   - 같은 이름의 루트가 있으면 먼저 제거 (Undo 등록) 후 새로 생성.
@@ -69,9 +69,9 @@ namespace KRTD.EditorTools
             reinforcementGO.transform.SetParent(abilitiesRoot.transform, false);
             Undo.RegisterCreatedObjectUndo(reinforcementGO, "Create ReinforcementAbility");
 
-            var meteorGO = new GameObject("Ability_MeteorShower", typeof(MeteorShowerAbility));
-            meteorGO.transform.SetParent(abilitiesRoot.transform, false);
-            Undo.RegisterCreatedObjectUndo(meteorGO, "Create MeteorShowerAbility");
+            var lavaZoneGO = new GameObject("Ability_LavaZone", typeof(LavaZoneAbility));
+            lavaZoneGO.transform.SetParent(abilitiesRoot.transform, false);
+            Undo.RegisterCreatedObjectUndo(lavaZoneGO, "Create LavaZoneAbility");
 
             // --- Canvas -------------------------------------------------------
             var canvasGO = new GameObject(CanvasName,
@@ -118,24 +118,24 @@ namespace KRTD.EditorTools
 
             // --- 버튼 2개 -----------------------------------------------------
             var reinforcementAbility = reinforcementGO.GetComponent<ReinforcementAbility>();
-            var meteorAbility = meteorGO.GetComponent<MeteorShowerAbility>();
+            var lavaZoneAbility = lavaZoneGO.GetComponent<LavaZoneAbility>();
 
             CreateAbilityButton(bottomRight.transform, "Btn_Reinforcement", reinforcementAbility,
                 highlightColor: new Color(1f, 0.85f, 0.3f, 0.95f),     // 금색
                 buttonTint: new Color(0.85f, 0.95f, 1f, 0.9f));        // 시원한 톤
-            CreateAbilityButton(bottomRight.transform, "Btn_MeteorShower", meteorAbility,
+            CreateAbilityButton(bottomRight.transform, "Btn_LavaZone", lavaZoneAbility,
                 highlightColor: new Color(1f, 0.85f, 0.3f, 0.95f),
-                buttonTint: new Color(1f, 0.75f, 0.7f, 0.9f));         // 화염 톤
+                buttonTint: new Color(1f, 0.55f, 0.3f, 0.9f));         // 용암 톤
 
             EditorSceneManager.MarkSceneDirty(canvasGO.scene);
             Selection.activeGameObject = canvasGO;
 
             Debug.Log("[AbilitiesHudSetupTool] 셋업 완료.\n" +
-                "  - 런타임: Abilities/{Controller, Reinforcement, MeteorShower}\n" +
+                "  - 런타임: Abilities/{Controller, Reinforcement, LavaZone}\n" +
                 "  - UI: Ability HUD Canvas/BottomRight/Btn_*\n" +
                 "남은 작업:\n" +
                 "  1) Ability_Reinforcement.soldierPrefab 에 Soldier 프리팹 드래그\n" +
-                "  2) Ability_MeteorShower.meteorPrefab 에 Meteor 프리팹 드래그 (Meteor.cs 컴포넌트 포함)\n" +
+                "  2) (선택) Ability_LavaZone.lavaZonePrefab 에 LavaZone 프리팹 드래그 — 비워두면 자동 LineRenderer 외곽선으로 표시\n" +
                 "  3) 각 능력의 Icon 슬롯에 아이콘 스프라이트 드래그 (선택사항)");
         }
 
