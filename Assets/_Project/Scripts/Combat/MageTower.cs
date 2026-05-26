@@ -5,6 +5,7 @@ namespace KRTD.Combat
     /// <summary>
     /// 사거리 내의 적을 자동으로 탐지해 마법 투사체를 발사하는 마법사 타워.
     /// ArcherTower와 동일한 자동 공격 패턴을 따르되, 화살 대신 마법 투사체를 던진다.
+    /// 타겟팅 정책: 사거리 내에서 경로상 가장 앞선 적을 우선.
     ///
     /// 구조 권장:
     ///   MageTower (이 컴포넌트)
@@ -53,7 +54,7 @@ namespace KRTD.Combat
         {
             if (Time.time < nextFireTime) return;
 
-            Enemy target = FindNearestEnemyInRange();
+            Enemy target = FindLeadingEnemyInRange();
             if (target == null) return;
 
             Fire(target);
@@ -104,28 +105,23 @@ namespace KRTD.Combat
             }
         }
 
-        private Enemy FindNearestEnemyInRange()
+        private Enemy FindLeadingEnemyInRange()
         {
             Vector3 origin = transform.position;
             float rangeSq = range * range;
-            Enemy nearest = null;
-            float bestDistSq = float.MaxValue;
+            Enemy best = null;
 
+            // NOTE: 매 프레임 FindObjectsByType은 비효율적.
+            //       적 수가 많아지면 EnemyManager에 등록/해제 방식으로 바꿀 것.
             Enemy[] enemies = Object.FindObjectsByType<Enemy>(FindObjectsSortMode.None);
             foreach (var e in enemies)
             {
                 if (e == null || e.IsDead) continue;
+                if ((e.Position - origin).sqrMagnitude > rangeSq) continue;
 
-                float distSq = (e.Position - origin).sqrMagnitude;
-                if (distSq > rangeSq) continue;
-
-                if (distSq < bestDistSq)
-                {
-                    bestDistSq = distSq;
-                    nearest = e;
-                }
+                if (e.IsAheadOf(best)) best = e;
             }
-            return nearest;
+            return best;
         }
 
         private void Fire(Enemy target)
