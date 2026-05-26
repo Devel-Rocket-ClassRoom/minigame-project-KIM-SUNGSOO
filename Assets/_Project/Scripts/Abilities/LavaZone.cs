@@ -8,8 +8,9 @@ namespace KRTD.Abilities
     /// 입히는 "장판" 오브젝트.
     ///
     /// LavaZoneAbility 가 클릭 지점에 인스턴스화 후 Init 으로 스탯을 주입한다.
-    /// 인스펙터 시각요소(자식 SpriteRenderer/ParticleSystem 등) 를 붙이면 그대로 보여지고,
-    /// 비어있으면 LineRenderer 로 자동 원형 외곽선을 그려준다 (자산 없이도 동작 보장).
+    /// 시각요소(자식 SpriteRenderer/ParticleSystem 등) 는 보통 클릭 지점보다 위로 솟구치는
+    /// 불꽃 같은 장식이라 실제 데미지 판정 영역을 정확히 보여주지 않는다. 그래서 LineRenderer
+    /// 데미지 외곽선을 항상 클릭 지점 반경에 그려 플레이어가 판정 영역을 명확히 인지할 수 있게 한다.
     /// </summary>
     public class LavaZone : MonoBehaviour
     {
@@ -32,15 +33,24 @@ namespace KRTD.Abilities
         [Min(0.01f)]
         [SerializeField] private float referenceRadius = 1.8f;
 
-        [Header("기본 시각 (자식 비주얼이 없을 때 fallback)")]
-        [Tooltip("LineRenderer 외곽선 색 (자동 생성될 때만 사용).")]
-        [SerializeField] private Color fallbackOutlineColor = new Color(1f, 0.3f, 0.05f, 0.9f);
-        [SerializeField] private float fallbackOutlineWidth = 0.1f;
-        [SerializeField] private int fallbackSegments = 48;
+        [Header("데미지 외곽선 (실제 판정 영역)")]
+        [Tooltip("켜져 있으면 시각요소(Puddle/Flame 등) 와 무관하게 항상 클릭 지점 반경에 " +
+            "LineRenderer 외곽선을 그려 정확한 데미지 영역을 보여준다. " +
+            "끄면 자식 비주얼이 하나도 없을 때만 외곽선이 자동 생성된다 (구버전 동작).")]
+        [SerializeField] private bool alwaysShowDamageOutline = true;
+
+        [Tooltip("외곽선 색.")]
+        [SerializeField] private Color outlineColor = new Color(1f, 0.55f, 0.1f, 1f);
+
+        [Tooltip("외곽선 두께(월드 단위).")]
+        [SerializeField] private float outlineWidth = 0.12f;
+
+        [Tooltip("외곽선 분할 수. 클수록 원이 매끄럽지만 비용 증가.")]
+        [SerializeField] private int outlineSegments = 48;
 
         private float spawnedAt;
         private float nextTickTime;
-        private LineRenderer fallbackOutline;
+        private LineRenderer damageOutline;
 
         /// <summary>
         /// 능력에서 호출. 스탯 주입 + 시각요소 갱신. transform.position 은 이미 클릭 지점.
@@ -58,7 +68,7 @@ namespace KRTD.Abilities
             nextTickTime = Time.time;
 
             ApplyVisualScale();
-            EnsureFallbackOutline();
+            EnsureDamageOutline();
         }
 
         private void Awake()
@@ -72,7 +82,7 @@ namespace KRTD.Abilities
         {
             // Init 없이 인스펙터 배치된 경우에도 안전하게 시각 동기화.
             ApplyVisualScale();
-            EnsureFallbackOutline();
+            EnsureDamageOutline();
         }
 
         private void Update()
@@ -122,47 +132,52 @@ namespace KRTD.Abilities
         }
 
         /// <summary>
-        /// 자식 시각요소(SpriteRenderer/ParticleSystem 등) 가 하나도 없을 때만
-        /// LineRenderer 외곽선을 자동 생성해 사용자가 어디에 시전됐는지 인지 가능하게 한다.
+        /// 클릭 지점 반경에 데미지 영역 외곽선을 그린다.
+        /// alwaysShowDamageOutline 이 켜져 있으면 시각요소 유무와 무관하게 항상 표시 — 시각이
+        /// 솟구치는 불꽃처럼 클릭 지점 위쪽으로 오프셋돼 있어도 플레이어가 정확한 판정 영역을 본다.
+        /// 꺼져 있으면 자식 비주얼이 하나도 없을 때만 자동 생성한다 (구버전 fallback 동작).
         /// </summary>
-        private void EnsureFallbackOutline()
+        private void EnsureDamageOutline()
         {
-            bool hasOwnVisual = false;
-            foreach (var sr in GetComponentsInChildren<SpriteRenderer>(true)) { if (sr != null) { hasOwnVisual = true; break; } }
-            if (!hasOwnVisual)
+            if (!alwaysShowDamageOutline)
             {
-                foreach (var ps in GetComponentsInChildren<ParticleSystem>(true)) { if (ps != null) { hasOwnVisual = true; break; } }
+                bool hasOwnVisual = false;
+                foreach (var sr in GetComponentsInChildren<SpriteRenderer>(true)) { if (sr != null) { hasOwnVisual = true; break; } }
+                if (!hasOwnVisual)
+                {
+                    foreach (var ps in GetComponentsInChildren<ParticleSystem>(true)) { if (ps != null) { hasOwnVisual = true; break; } }
+                }
+
+                if (hasOwnVisual)
+                {
+                    if (damageOutline != null) { Destroy(damageOutline.gameObject); damageOutline = null; }
+                    return;
+                }
             }
 
-            if (hasOwnVisual)
+            if (damageOutline == null)
             {
-                // 외곽선이 이전에 만들어졌다면 정리.
-                if (fallbackOutline != null) { Destroy(fallbackOutline.gameObject); fallbackOutline = null; }
-                return;
-            }
-
-            if (fallbackOutline == null)
-            {
-                var go = new GameObject("FallbackOutline");
+                var go = new GameObject("DamageOutline");
                 go.transform.SetParent(transform, false);
-                fallbackOutline = go.AddComponent<LineRenderer>();
-                fallbackOutline.material = new Material(Shader.Find("Sprites/Default"));
-                fallbackOutline.useWorldSpace = false;
-                fallbackOutline.loop = true;
-                fallbackOutline.sortingOrder = 50;
+                go.transform.localPosition = Vector3.zero;   // 클릭 지점(=transform.position) 정중앙
+                damageOutline = go.AddComponent<LineRenderer>();
+                damageOutline.material = new Material(Shader.Find("Sprites/Default"));
+                damageOutline.useWorldSpace = false;
+                damageOutline.loop = true;
+                damageOutline.sortingOrder = 100;            // 시각요소(Puddle=1, Flame=2) 위로 명확히
             }
 
-            fallbackOutline.startWidth = fallbackOutlineWidth;
-            fallbackOutline.endWidth = fallbackOutlineWidth;
-            fallbackOutline.startColor = fallbackOutlineColor;
-            fallbackOutline.endColor = fallbackOutlineColor;
+            damageOutline.startWidth = outlineWidth;
+            damageOutline.endWidth = outlineWidth;
+            damageOutline.startColor = outlineColor;
+            damageOutline.endColor = outlineColor;
 
-            int seg = Mathf.Max(8, fallbackSegments);
-            fallbackOutline.positionCount = seg;
+            int seg = Mathf.Max(8, outlineSegments);
+            damageOutline.positionCount = seg;
             for (int i = 0; i < seg; i++)
             {
                 float a = i * 2f * Mathf.PI / seg;
-                fallbackOutline.SetPosition(i, new Vector3(Mathf.Cos(a) * radius, Mathf.Sin(a) * radius, 0f));
+                damageOutline.SetPosition(i, new Vector3(Mathf.Cos(a) * radius, Mathf.Sin(a) * radius, 0f));
             }
         }
 
