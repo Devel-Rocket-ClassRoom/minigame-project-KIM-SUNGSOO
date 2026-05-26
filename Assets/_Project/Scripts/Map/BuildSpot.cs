@@ -40,6 +40,7 @@ namespace KRTD.Map
 
         // 런타임 인스턴스 추적 (직렬화 안 함)
         [System.NonSerialized] private GameObject currentBuildingInstance;
+        [System.NonSerialized] private BoxCollider2D cachedCollider;
 
         public bool IsOccupied => isOccupied;
         public Vector2Int Size => size;
@@ -47,6 +48,17 @@ namespace KRTD.Map
         public BuildingData CurrentBuilding => currentBuilding;
         /// <summary>이 스팟에 지금까지 투입된 누적 골드. 판매 환급 계산에 사용된다.</summary>
         public int TotalInvested => totalInvested;
+
+        /// <summary>
+        /// 스팟의 클릭 콜라이더를 켜고 끈다.
+        /// 라디얼 메뉴가 열려있는 동안 BuildMenuController 가 이 스팟을 임시 비활성화해서,
+        /// 메뉴 버튼 옆을 살짝 빗나간 클릭이 OnMouseDown 으로 다시 들어와 메뉴를 재생성하는 것을 막는다.
+        /// </summary>
+        public void SetClickable(bool clickable)
+        {
+            if (cachedCollider == null) cachedCollider = GetComponent<BoxCollider2D>();
+            if (cachedCollider != null) cachedCollider.enabled = clickable;
+        }
 
         /// <summary>
         /// 현재 설치된 건물 인스턴스의 컴포넌트(또는 인터페이스 구현체)를 가져온다.
