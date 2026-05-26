@@ -48,7 +48,7 @@ MonoBehaviour:
   maxHp: 70
   damage: 15
   attackInterval: 1
-  attackRange: 0.8
+  attackRange: 1.2
   attackType: 0
   physicalDefense: 3
   magicDefense: 0
