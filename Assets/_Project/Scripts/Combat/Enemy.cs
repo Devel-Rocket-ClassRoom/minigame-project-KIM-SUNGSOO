@@ -62,6 +62,38 @@ namespace KRTD.Combat
         public bool IsDead => currentHp <= 0f;
         public Vector3 Position => transform.position;
 
+        /// <summary>
+        /// 현재 향하고 있는 다음 웨이포인트의 인덱스. 클수록 경로상 더 앞서 있다.
+        /// path 가 없거나 골인한 적은 0/마지막 값으로 고정된다.
+        /// </summary>
+        public int WaypointIndex => nextWaypointIndex;
+
+        /// <summary>
+        /// 현재 위치에서 다음 웨이포인트까지 남은 직선 거리. WaypointIndex 가 같을 때
+        /// 더 작은 쪽이 경로상 더 앞서 있다고 본다.
+        /// path 미설정 시 0 으로 간주.
+        /// </summary>
+        public float DistanceToNextWaypoint
+        {
+            get
+            {
+                if (path == null || path.Count == 0) return 0f;
+                return (path.GetPoint(nextWaypointIndex) - transform.position).magnitude;
+            }
+        }
+
+        /// <summary>
+        /// 이 적이 other 보다 경로상 더 앞서 있으면 true.
+        /// 비교 키: WaypointIndex 내림차순 → DistanceToNextWaypoint 오름차순.
+        /// other 가 null 이면 항상 true (첫 후보).
+        /// </summary>
+        public bool IsAheadOf(Enemy other)
+        {
+            if (other == null) return true;
+            if (WaypointIndex != other.WaypointIndex) return WaypointIndex > other.WaypointIndex;
+            return DistanceToNextWaypoint < other.DistanceToNextWaypoint;
+        }
+
         private void Awake()
         {
             // 데이터가 있으면 스탯/시각 동기화. 없으면 fallback 값 그대로.
