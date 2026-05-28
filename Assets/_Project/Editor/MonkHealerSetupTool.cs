@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.IO;
 using UnityEditor;
+using UnityEditor.Animations;
 using UnityEngine;
 using KRTD.Combat;
 
@@ -54,7 +55,9 @@ namespace KRTD.EditorTools
         private const float HEAL_ATK_INTERVAL = 1f;
         private const float HEAL_AMOUNT = 6f;
         private const float HEAL_RANGE = 2.5f;
-        private const float HEAL_INTERVAL = 1.5f;
+        private const float HEAL_INTERVAL = 2f;
+        private const float HEAL_CAST_DURATION = 1.1f; // Monk_Heal_Black 클립 길이. 와이어링 시 실제 길이로 갱신.
+        private const string HEAL_TRIGGER = "Heal";
 
         [MenuItem(MenuPath)]
         public static void CreateHealer()
@@ -67,12 +70,15 @@ namespace KRTD.EditorTools
                     "Tiny Swords 자산이 다른 경로에 있다면 이 스크립트의 MonkSpritePath 를 수정하세요.");
                 return;
             }
-            var monkController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(MonkControllerPath);
+            var monkController = AssetDatabase.LoadAssetAtPath<AnimatorController>(MonkControllerPath);
             if (monkController == null)
             {
                 Debug.LogError($"[MonkHealerSetupTool] {MonkControllerPath} 에서 AnimatorController 를 찾지 못함.");
                 return;
             }
+
+            // Heal 트리거 + 트랜지션을 컨트롤러에 구성하고, Heal 클립 실제 길이를 받아 시전 시간으로 쓴다.
+            float healCastDuration = WireHealAnimation(monkController);
             var sourcePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(SourcePrefabPath);
             if (sourcePrefab == null)
             {
@@ -114,6 +120,7 @@ namespace KRTD.EditorTools
             data.healAmount = HEAL_AMOUNT;
             data.healRange = HEAL_RANGE;
             data.healInterval = HEAL_INTERVAL;
+            data.healCastDuration = healCastDuration;
             AssetDatabase.CreateAsset(data, OutputDataPath);
 
             // --- 4. 복사된 프리팹 수정 ---------------------------------------
@@ -157,13 +164,15 @@ namespace KRTD.EditorTools
                     so.FindProperty("healAmount").floatValue = HEAL_AMOUNT;
                     so.FindProperty("healRange").floatValue = HEAL_RANGE;
                     so.FindProperty("healInterval").floatValue = HEAL_INTERVAL;
-                    // Monk 컨트롤러에는 파라미터가 없으므로 애니 트리거 이름을 비워 경고 방지
+                    so.FindProperty("healCastDuration").floatValue = healCastDuration;
+                    // Monk 컨트롤러엔 isAttacking/death 파라미터가 없으므로 비워서 경고 방지.
+                    // healTrigger 는 WireHealAnimation 으로 추가한 "Heal" 트리거를 사용.
                     var isAtk = so.FindProperty("isAttackingBool");
                     if (isAtk != null) isAtk.stringValue = "";
                     var deathTrig = so.FindProperty("deathTrigger");
                     if (deathTrig != null) deathTrig.stringValue = "";
                     var healTrig = so.FindProperty("healTrigger");
-                    if (healTrig != null) healTrig.stringValue = "";
+                    if (healTrig != null) healTrig.stringValue = HEAL_TRIGGER;
                     so.ApplyModifiedPropertiesWithoutUndo();
                 }
 
@@ -188,9 +197,76 @@ namespace KRTD.EditorTools
             Debug.Log("[MonkHealerSetupTool] 생성 완료\n" +
                 $"  - 프리팹: {OutputPrefabPath}\n" +
                 $"  - 데이터: {OutputDataPath}\n" +
+                $"  - Heal 애니: 컨트롤러에 'Heal' 트리거+트랜지션 구성, 시전 멈춤 {healCastDuration:0.##}s\n" +
                 "남은 작업:\n" +
                 "  1) Wave 의 entries 에 Monk(Healer) EnemyData 를 추가 (탱커/일반 적과 함께 등장시켜야 힐이 의미 있음)\n" +
-                "  2) 인스펙터에서 스탯 조정 (현재 HP 45 / 힐량 6 / 힐 사거리 2.5 / 힐 텀 1.5s)");
+                "  2) 인스펙터에서 스탯 조정 (현재 HP 45 / 힐량 6 / 힐 사거리 2.5 / 힐 텀 2s)");
+        }
+
+        /// <summary>
+        /// Monk 컨트롤러에 Heal 트리거와 트랜지션을 구성한다(없으면 추가, 이미 있으면 갱신).
+        ///   - 파라미터: Heal (Trigger)
+        ///   - AnyState → Heal : Heal 트리거 시 즉시 전환(exit time 없음)
+        ///   - Heal → Idle      : 클립이 거의 끝나면(exitTime 0.98) 복귀
+        /// 반환값: Heal 클립 길이(초). 못 찾으면 기본값.
+        /// </summary>
+        private static float WireHealAnimation(AnimatorController ac)
+        {
+            // 1. Heal 트리거 파라미터 보장
+            bool hasHeal = false;
+            foreach (var p in ac.parameters)
+                if (p.name == HEAL_TRIGGER) { hasHeal = true; break; }
+            if (!hasHeal) ac.AddParameter(HEAL_TRIGGER, AnimatorControllerParameterType.Trigger);
+
+            if (ac.layers == null || ac.layers.Length == 0)
+            {
+                Debug.LogWarning("[MonkHealerSetupTool] 컨트롤러에 레이어가 없어 Heal 트랜지션을 구성하지 못함.");
+                return HEAL_CAST_DURATION;
+            }
+            var sm = ac.layers[0].stateMachine;
+
+            // 2. Heal / Idle 상태 찾기 (이름 규칙: Monk_Heal_Black, Monk_Idle_Black)
+            AnimatorState healState = null;
+            AnimatorState idleState = null;
+            foreach (var cs in sm.states)
+            {
+                string n = cs.state.name;
+                if (n.IndexOf("Heal", System.StringComparison.OrdinalIgnoreCase) >= 0) healState = cs.state;
+                else if (n.IndexOf("Idle", System.StringComparison.OrdinalIgnoreCase) >= 0) idleState = cs.state;
+            }
+            if (healState == null)
+            {
+                Debug.LogWarning("[MonkHealerSetupTool] Heal 상태를 찾지 못해 트랜지션을 구성하지 못함.");
+                return HEAL_CAST_DURATION;
+            }
+            if (idleState == null) idleState = sm.defaultState;
+
+            // 3. AnyState → Heal (idempotent: 기존 동일 전환 제거 후 재생성)
+            foreach (var t in sm.anyStateTransitions)
+                if (t.destinationState == healState) sm.RemoveAnyStateTransition(t);
+            var toHeal = sm.AddAnyStateTransition(healState);
+            toHeal.hasExitTime = false;
+            toHeal.duration = 0f;
+            toHeal.canTransitionToSelf = false;
+            toHeal.AddCondition(AnimatorConditionMode.If, 0f, HEAL_TRIGGER);
+
+            // 4. Heal → Idle (클립 거의 끝나면 복귀)
+            if (idleState != null)
+            {
+                foreach (var t in healState.transitions)
+                    if (t.destinationState == idleState) healState.RemoveTransition(t);
+                var back = healState.AddTransition(idleState);
+                back.hasExitTime = true;
+                back.exitTime = 0.98f;
+                back.duration = 0.02f;
+            }
+
+            EditorUtility.SetDirty(ac);
+            AssetDatabase.SaveAssets();
+
+            // 5. Heal 클립 길이 반환
+            var clip = healState.motion as AnimationClip;
+            return clip != null && clip.length > 0f ? clip.length : HEAL_CAST_DURATION;
         }
 
         private static Sprite LoadFirstSprite(string path)

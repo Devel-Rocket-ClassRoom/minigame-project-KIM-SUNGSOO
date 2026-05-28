@@ -35,7 +35,9 @@ namespace KRTD.Combat
         [Tooltip("0 이면 힐러 아님. 0 보다 크면 healInterval 마다 사거리 안 가장 많이 다친 아군 적을 회복.")]
         [SerializeField] private float healAmount = 0f;
         [SerializeField] private float healRange = 2.5f;
-        [SerializeField] private float healInterval = 1.5f;
+        [SerializeField] private float healInterval = 2f;
+        [Tooltip("힐 시전 동안 멈춰 있는 시간(초). Heal 애니메이션 길이와 맞춘다.")]
+        [SerializeField] private float healCastDuration = 1.1f;
 
         [Header("이동")]
         [Tooltip("웨이포인트에 이만큼 가까워지면 다음 점으로 진행")]
@@ -67,6 +69,8 @@ namespace KRTD.Combat
 
         // 힐러 모드 상태
         private float nextHealTime;
+        private bool isHealing;     // 힐 모션 시전 중(이동 멈춤)
+        private float healEndTime;  // 이 시각이 지나면 시전 종료 후 다시 이동
 
         public bool IsDead => currentHp <= 0f;
         public Vector3 Position => transform.position;
@@ -183,16 +187,32 @@ namespace KRTD.Combat
                 }
             }
 
-            // 1-b. 힐러: 다친 아군 적을 주기적으로 회복. (공격과 달리 멈추지 않고 이동하며 시전)
-            if (ResolveHealAmount() > 0f && Time.time >= nextHealTime)
+            // 1-b. 힐러: 다친 아군 적을 회복. 시전하는 동안(healCastDuration) 멈춰서 힐 모션을 재생하고,
+            //      모션이 끝나면 다시 이동한다.
+            if (ResolveHealAmount() > 0f)
             {
-                Enemy ally = FindMostWoundedAllyInHealRange();
-                if (ally != null)
+                if (isHealing)
                 {
-                    ally.Heal(ResolveHealAmount());
-                    nextHealTime = Time.time + ResolveHealInterval();
-                    if (animator != null && !string.IsNullOrEmpty(healTrigger))
-                        animator.SetTrigger(healTrigger);
+                    // 시전 중 — 모션이 끝날 때까지 멈춰 있는다.
+                    if (Time.time >= healEndTime) isHealing = false;
+                    else engaging = true; // 이번 프레임 이동 정지
+                }
+                else if (Time.time >= nextHealTime)
+                {
+                    Enemy ally = FindMostWoundedAllyInHealRange();
+                    if (ally != null)
+                    {
+                        ally.Heal(ResolveHealAmount());
+                        nextHealTime = Time.time + ResolveHealInterval();
+
+                        // 시전 시작: 멈추고, 대상을 바라보며, 힐 애니메이션 트리거.
+                        isHealing = true;
+                        healEndTime = Time.time + ResolveHealCastDuration();
+                        engaging = true;
+                        UpdateFacing(ally.Position.x - transform.position.x);
+                        if (animator != null && !string.IsNullOrEmpty(healTrigger))
+                            animator.SetTrigger(healTrigger);
+                    }
                 }
             }
 
@@ -386,6 +406,7 @@ namespace KRTD.Combat
             healAmount = data.healAmount;
             healRange = data.healRange;
             healInterval = data.healInterval;
+            healCastDuration = data.healCastDuration;
         }
 
         private float ResolveMaxHp() => data != null ? data.maxHp : maxHp;
@@ -408,6 +429,7 @@ namespace KRTD.Combat
         private float ResolveHealAmount() => data != null ? data.healAmount : healAmount;
         private float ResolveHealRange() => data != null ? data.healRange : healRange;
         private float ResolveHealInterval() => data != null ? data.healInterval : healInterval;
+        private float ResolveHealCastDuration() => data != null ? data.healCastDuration : healCastDuration;
 
         private float ResolveDefense(AttackType type)
         {

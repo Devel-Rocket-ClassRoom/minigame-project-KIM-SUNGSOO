@@ -70,7 +70,11 @@ namespace KRTD.Combat
         [Tooltip("이 거리 안의 다친 아군 적을 회복 대상으로 삼는다.")]
         public float healRange = 2.5f;
 
-        [Tooltip("연속 힐 사이의 텀(초).")]
-        public float healInterval = 1.5f;
+        [Tooltip("연속 힐 사이의 텀(초). healCastDuration 보다 커야 힐 사이에 이동 구간이 생긴다.")]
+        public float healInterval = 2f;
+
+        [Tooltip("힐 시전 동안 멈춰 있는 시간(초). 보통 Heal 애니메이션 길이와 맞춘다. " +
+            "이 시간이 지나면 다시 이동한다.")]
+        public float healCastDuration = 1.1f;
     }
 }
