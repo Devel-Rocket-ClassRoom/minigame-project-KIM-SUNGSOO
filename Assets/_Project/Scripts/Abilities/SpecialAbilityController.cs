@@ -22,6 +22,12 @@ namespace KRTD.Abilities
             "null 이면 미리보기 표시 없음.")]
         [SerializeField] private LineRenderer previewCirclePrefab;
 
+        [Header("미리보기 색상")]
+        [Tooltip("배치 가능 위치일 때 미리보기 색.")]
+        [SerializeField] private Color validColor = new Color(1f, 1f, 1f, 0.95f);
+        [Tooltip("배치 불가 위치일 때 미리보기 색 (예: 지원군이 길 밖일 때).")]
+        [SerializeField] private Color invalidColor = new Color(1f, 0.3f, 0.3f, 0.95f);
+
         private SpecialAbility pendingAbility;
         private LineRenderer previewInstance;
 
@@ -73,12 +79,17 @@ namespace KRTD.Abilities
                 if (worldCamera == null) return;
             }
 
-            // 미리보기 원을 마우스 따라가게.
+            // 미리보기 원을 마우스 따라가게 + 가능/불가 색 갱신.
+            Vector3 mouseWorldNow = worldCamera.ScreenToWorldPoint(Input.mousePosition);
+            mouseWorldNow.z = 0f;
+            bool validNow = pendingAbility.IsValidPlacement(mouseWorldNow);
+
             if (previewInstance != null)
             {
-                Vector3 mouseWorld = worldCamera.ScreenToWorldPoint(Input.mousePosition);
-                mouseWorld.z = 0f;
-                previewInstance.transform.position = mouseWorld;
+                previewInstance.transform.position = mouseWorldNow;
+                var c = validNow ? validColor : invalidColor;
+                previewInstance.startColor = c;
+                previewInstance.endColor = c;
             }
 
             if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
@@ -92,24 +103,35 @@ namespace KRTD.Abilities
                 // UI 위 클릭(능력 버튼 자체 등) 은 무시.
                 if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
 
-                Vector3 mouseWorld = worldCamera.ScreenToWorldPoint(Input.mousePosition);
-                mouseWorld.z = 0f;
+                // 배치 불가 위치면 클릭을 흘려보낸다 — 조준 모드 유지하여 다시 시도 가능.
+                if (!validNow) return;
 
                 var ability = pendingAbility;
-                // 캐스트 자체에서 실패해도 조준 모드는 닫는다 (쿨 끝났는지 다시 누르라는 의미).
                 CancelTargeting();
-                ability.TryCast(mouseWorld);
+                ability.TryCast(mouseWorldNow);
             }
         }
 
         private void ShowPreview(SpecialAbility ability)
         {
-            if (previewCirclePrefab == null) return;
-
             float radius = ability is IAbilityPreviewRadius p ? p.PreviewRadius : 0f;
             if (radius <= 0f) return;
 
-            previewInstance = Instantiate(previewCirclePrefab);
+            if (previewCirclePrefab != null)
+            {
+                previewInstance = Instantiate(previewCirclePrefab);
+            }
+            else
+            {
+                // 디자인용 prefab 이 없을 때 표시용으로 자동 생성. 나중에 prefab 슬롯 채우면 그게 우선.
+                var go = new GameObject("PreviewCircle (auto)");
+                previewInstance = go.AddComponent<LineRenderer>();
+                previewInstance.material = new Material(Shader.Find("Sprites/Default"));
+                previewInstance.startWidth = 0.08f;
+                previewInstance.endWidth = 0.08f;
+                previewInstance.sortingOrder = 100;
+            }
+
             DrawCircle(previewInstance, radius, 48);
         }
 

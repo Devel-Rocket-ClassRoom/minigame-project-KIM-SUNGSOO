@@ -65,18 +65,26 @@ namespace KRTD.Abilities
         public event Action OnStateChanged;
 
         /// <summary>
-        /// 컨트롤러가 호출. 준비됐으면 효과 실행 후 쿨다운 시작하고 true 반환.
-        /// 쿨다운 중이면 false.
+        /// 컨트롤러가 호출. 준비됐고 위치가 유효하면 효과 실행 후 쿨다운 시작하고 true 반환.
+        /// 쿨다운 중이거나 위치 무효면 false (쿨다운 안 들어감 → 다시 시도 가능).
         /// </summary>
         public bool TryCast(Vector3 worldPos)
         {
             if (!IsReady) return false;
+            if (!IsValidPlacement(worldPos)) return false;
 
             Perform(worldPos);
             lastCastTime = Time.time;
             OnStateChanged?.Invoke();
             return true;
         }
+
+        /// <summary>
+        /// 이 위치에 시전 가능한지 판정. 파생 클래스가 오버라이드 (지원군 = pathtile 위에만 등).
+        /// 기본: 어디든 OK (LavaZone 등).
+        /// 미리보기 UI 도 이 결과로 가능/불가 색을 결정한다.
+        /// </summary>
+        public virtual bool IsValidPlacement(Vector3 worldPos) => true;
 
         /// <summary>파생 클래스가 실제 효과를 구현. 쿨다운 처리는 베이스가 담당하므로 여기선 하지 않는다.</summary>
         protected abstract void Perform(Vector3 worldPos);
