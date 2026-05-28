@@ -75,6 +75,17 @@ namespace KRTD.Combat
         public bool IsDead => currentHp <= 0f;
         public Vector3 Position => transform.position;
 
+        // 필드에 살아있는 적 수 — GameOutcomeWatcher 가 승리 조건 판정에 사용.
+        // OnEnable/OnDisable 로 증감 (Destroy/Pool 어느 쪽이든 동기화).
+        public static int AliveCount { get; private set; }
+
+        // Domain Reload 가 꺼진 경우(Enter Play Mode Options) 정적 값이 남아 다음 플레이에 누적되는 걸 방지.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void ResetStaticState() { AliveCount = 0; }
+
+        private void OnEnable() { AliveCount++; }
+        private void OnDisable() { AliveCount = Mathf.Max(0, AliveCount - 1); }
+
         /// <summary>골인 처리됐는지. 골인한 적은 힐 대상에서 제외된다.</summary>
         public bool HasReachedEnd => reachedEnd;
 

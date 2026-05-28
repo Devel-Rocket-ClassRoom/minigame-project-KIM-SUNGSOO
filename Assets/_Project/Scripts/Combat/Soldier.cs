@@ -227,6 +227,16 @@ namespace KRTD.Combat
             Destroy(gameObject, Mathf.Max(0f, deathLingerSeconds));
         }
 
+        /// <summary>
+        /// 외부에서 시간 만료 등으로 보병을 사망시킬 때 호출. 일반 사망과 동일하게 처리(애니/Destroy).
+        /// 이미 죽은 상태면 무시.
+        /// </summary>
+        public void Expire()
+        {
+            if (isDead) return;
+            Die();
+        }
+
         private bool IsInAttackRange(Enemy enemy)
         {
             return (enemy.Position - transform.position).sqrMagnitude <= attackRange * attackRange;

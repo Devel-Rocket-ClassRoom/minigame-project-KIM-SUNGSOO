@@ -30,13 +30,21 @@ namespace KRTD.Game
         public int Gold { get; private set; }
         public int CurrentWave { get; private set; }
         public int TotalWave => totalWave;
+
+        /// <summary>life ≤ 0 으로 패배가 확정된 상태.</summary>
         public bool IsGameOver { get; private set; }
+        /// <summary>모든 웨이브 종료 + 필드 적 0 으로 승리가 확정된 상태.</summary>
+        public bool IsGameWon { get; private set; }
+        /// <summary>승패 어느 쪽으로든 결판이 났는지 (UI 가 입력 차단 등에 사용).</summary>
+        public bool IsGameEnded => IsGameOver || IsGameWon;
 
         public event Action<int> OnLifeChanged;
         public event Action<int> OnGoldChanged;
         /// <summary>(current, total) 순서로 호출.</summary>
         public event Action<int, int> OnWaveChanged;
         public event Action OnGameOver;
+        /// <summary>승리가 확정된 순간 한 번만 호출.</summary>
+        public event Action OnGameWon;
 
         private void Awake()
         {
@@ -68,7 +76,8 @@ namespace KRTD.Game
         /// <summary>적이 골인했을 때 호출.</summary>
         public void LoseLife(int amount = 1)
         {
-            if (IsGameOver || amount <= 0) return;
+            // 이미 결판났으면(승패 어느 쪽이든) 무시 — 승리 직후 골인하는 적 등으로 중복 트리거 방지.
+            if (IsGameEnded || amount <= 0) return;
 
             Life = Mathf.Max(0, Life - amount);
             OnLifeChanged?.Invoke(Life);
@@ -78,6 +87,17 @@ namespace KRTD.Game
                 IsGameOver = true;
                 OnGameOver?.Invoke();
             }
+        }
+
+        /// <summary>
+        /// 외부(GameOutcomeWatcher)가 승리 조건 충족 시 호출. 패배 확정 상태에선 무시.
+        /// 한 번만 OnGameWon 을 발사한다.
+        /// </summary>
+        public void TriggerWin()
+        {
+            if (IsGameEnded) return;
+            IsGameWon = true;
+            OnGameWon?.Invoke();
         }
 
         /// <summary>적 처치 보상 등 골드 획득.</summary>
