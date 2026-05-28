@@ -1,5 +1,6 @@
 using UnityEngine;
 using KRTD.UI;
+using KRTD.Abilities;
 
 namespace KRTD.Map
 {
@@ -164,6 +165,11 @@ namespace KRTD.Map
 
         private void OnMouseDown()
         {
+            // 특수능력 조준 모드 중에는 빌드/관리 메뉴를 띄우지 않는다.
+            // 같은 클릭은 SpecialAbilityController 가 능력 시전(또는 무효 처리)로 소비.
+            var abilityCtrl = SpecialAbilityController.Instance;
+            if (abilityCtrl != null && abilityCtrl.IsTargeting) return;
+
             var menu = BuildMenuController.Instance;
             if (menu == null)
             {
