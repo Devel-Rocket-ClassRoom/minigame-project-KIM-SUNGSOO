@@ -1,5 +1,7 @@
 using UnityEngine;
+using UnityEngine.Tilemaps;
 using KRTD.Combat;
+using KRTD.Map;
 
 namespace KRTD.Abilities
 {
@@ -34,7 +36,39 @@ namespace KRTD.Abilities
         [Min(0f)]
         [SerializeField] private float lifetimeSeconds = 10f;
 
+        [Header("배치 가능 영역")]
+        [Tooltip("이 Tilemap 위에 타일이 있는 셀에만 지원군 배치 가능. " +
+            "비워두면 어디든 OK (이전 동작). 보통 씬의 PathTileMap 을 드래그.")]
+        [SerializeField] private Tilemap pathTilemap;
+
         public float PreviewRadius => Mathf.Max(0.3f, (soldierCount - 1) * formationSpacing * 0.5f + 0.3f);
+
+        /// <summary>
+        /// 지원군은 경로 타일 위에만 배치 가능.
+        /// 인스펙터 pathTilemap 우선, 비어있으면 PathTilemapMarker 자동 탐색.
+        /// 둘 다 못 찾으면 안전망으로 항상 OK (이전 동작).
+        /// </summary>
+        public override bool IsValidPlacement(Vector3 worldPos)
+        {
+            var map = ResolveTilemap();
+            if (map == null) return true;
+            var cell = map.WorldToCell(worldPos);
+            return map.HasTile(cell);
+        }
+
+        // 인스펙터 참조 → 마커 자동 탐색 → null 순. 결과를 캐싱해 재탐색 비용 줄임.
+        private Tilemap cachedResolved;
+        private Tilemap ResolveTilemap()
+        {
+            if (pathTilemap != null) return pathTilemap;
+            if (cachedResolved != null) return cachedResolved;
+
+            // Stage prefab 동적 인스턴스화 대비 — 매 호출마다 한 번씩 가볍게 시도하지 않고,
+            // 인스턴스가 사라진 경우 다시 탐색하기 위해 매번 조회 (FindFirst 는 한 번 호출 비용 작음).
+            var marker = Object.FindFirstObjectByType<PathTilemapMarker>();
+            cachedResolved = marker != null ? marker.Tilemap : null;
+            return cachedResolved;
+        }
 
         protected override void Perform(Vector3 worldPos)
         {

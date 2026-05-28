@@ -3555,6 +3555,7 @@ MonoBehaviour:
   hpMultiplier: 1
   damageMultiplier: 1
   lifetimeSeconds: 10
+  pathTilemap: {fileID: 1011345395}
 --- !u!1 &824583815
 GameObject:
   m_ObjectHideFlags: 0
@@ -17290,6 +17291,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Abilities.SpecialAbilityController
   worldCamera: {fileID: 0}
   previewCirclePrefab: {fileID: 0}
+  validColor: {r: 1, g: 1, b: 1, a: 0.95}
+  invalidColor: {r: 1, g: 0.3, b: 0.3, a: 0.95}
 --- !u!1 &1475393598
 GameObject:
   m_ObjectHideFlags: 0
