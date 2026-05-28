@@ -82,6 +82,19 @@ namespace KRTD.Abilities
         protected abstract void Perform(Vector3 worldPos);
 
         /// <summary>
+        /// 현재 쿨다운을 N초만큼 단축한다. 시전 시각(lastCastTime)을 과거로 당기는 방식이라
+        /// 이미 시전한 적 없는 능력(IsReady=true)에는 영향이 없다.
+        /// 보통 "다음 웨이브 일찍 부르기" 같은 외부 보상 시스템이 호출.
+        /// </summary>
+        public void ReduceCooldown(float seconds)
+        {
+            if (seconds <= 0f) return;
+            if (IsReady) return; // 이미 준비된 능력은 더 당길 의미 없음
+            lastCastTime -= seconds;
+            OnStateChanged?.Invoke();
+        }
+
+        /// <summary>
         /// 매 프레임 쿨다운 종료 시점을 한 번만 통지하기 위해 폴링.
         /// (UI 가 매 프레임 CooldownProgress01 을 읽는 방식도 가능하므로 옵션. 여기선 단순화를 위해 이벤트만 사용.)
         /// </summary>
