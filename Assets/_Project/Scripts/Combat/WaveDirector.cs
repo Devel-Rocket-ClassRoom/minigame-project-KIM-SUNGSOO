@@ -67,6 +67,12 @@ namespace KRTD.Combat
         /// <summary>갭이 끝났을 때 (스킵이든 시간 만료든) 호출. UI 가 일괄 정리에 사용.</summary>
         public event Action OnGapEnded;
 
+        /// <summary>모든 웨이브 진행이 끝났을 때 한 번만 호출. 승리 조건 감지가 구독.</summary>
+        public event Action OnAllWavesDone;
+
+        /// <summary>모든 웨이브가 끝났는지 (마지막 RunWave 종료 후 true).</summary>
+        public bool AreAllWavesDone { get; private set; }
+
         /// <summary>현재 갭의 다음 웨이브. 갭이 아니면 null.</summary>
         public WaveData NextWave { get; private set; }
 
@@ -144,6 +150,8 @@ namespace KRTD.Combat
             }
 
             isRunning = false;
+            AreAllWavesDone = true;
+            OnAllWavesDone?.Invoke();
         }
 
         // 갭 동안 매 프레임 skipRequested 를 확인. 스킵되면 절약된 초를 OnWaveSkipped 로 알린다.
