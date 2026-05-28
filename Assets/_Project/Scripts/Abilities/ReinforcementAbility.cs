@@ -29,6 +29,11 @@ namespace KRTD.Abilities
         [Tooltip("보병 기본 데미지에 곱할 배율. 1 = 원본 그대로.")]
         [SerializeField] private float damageMultiplier = 1f;
 
+        [Header("시한부 (만료)")]
+        [Tooltip("스폰 후 이 시간(초)이 지나면 지원군이 자동으로 사망한다. 0 이면 영구(만료 없음).")]
+        [Min(0f)]
+        [SerializeField] private float lifetimeSeconds = 10f;
+
         public float PreviewRadius => Mathf.Max(0.3f, (soldierCount - 1) * formationSpacing * 0.5f + 0.3f);
 
         protected override void Perform(Vector3 worldPos)
@@ -48,6 +53,13 @@ namespace KRTD.Abilities
                 s.SetRallyPoint(pos);
                 if (!Mathf.Approximately(hpMultiplier, 1f) || !Mathf.Approximately(damageMultiplier, 1f))
                     s.ApplyTier(hpMultiplier, damageMultiplier);
+
+                // 시한부 만료 타이머 부착 (lifetimeSeconds > 0 일 때만).
+                if (lifetimeSeconds > 0f)
+                {
+                    var lifetime = s.gameObject.AddComponent<ReinforcementLifetime>();
+                    lifetime.Setup(lifetimeSeconds);
+                }
             }
         }
     }
