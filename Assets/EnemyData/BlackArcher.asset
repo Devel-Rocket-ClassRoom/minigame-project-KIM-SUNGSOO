@@ -22,8 +22,8 @@ MonoBehaviour:
   magicDefense: 0
   minDamage: 1
   attackDamage: 10
-  attackRange: 3
-  detectionRange: 3
+  attackRange: 1.5
+  detectionRange: 2.5
   attackInterval: 1
   attackType: 0
   arrowPrefab: {fileID: 4185045966540784182, guid: 4404009741cc1184c843f03ce67add81, type: 3}
