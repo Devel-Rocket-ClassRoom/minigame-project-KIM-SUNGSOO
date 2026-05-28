@@ -62,5 +62,19 @@ namespace KRTD.Combat
         [Tooltip("원거리 공격에 사용할 화살(혹은 마법) 투사체 프리팹. " +
             "비워두면 즉시 데미지(근접). 설정하면 적 위치에서 보병까지 날아간 뒤 데미지.")]
         public Arrow arrowPrefab;
+
+        [Header("힐 (지원형 적 — 다친 아군 적을 회복)")]
+        [Tooltip("0 이면 힐러 아님(일반 적). 0 보다 크면 healInterval 마다 사거리 안에서 가장 많이 다친 아군 적을 이만큼 회복한다.")]
+        public float healAmount = 0f;
+
+        [Tooltip("이 거리 안의 다친 아군 적을 회복 대상으로 삼는다.")]
+        public float healRange = 2.5f;
+
+        [Tooltip("연속 힐 사이의 텀(초). healCastDuration 보다 커야 힐 사이에 이동 구간이 생긴다.")]
+        public float healInterval = 2f;
+
+        [Tooltip("힐 시전 동안 멈춰 있는 시간(초). 보통 Heal 애니메이션 길이와 맞춘다. " +
+            "이 시간이 지나면 다시 이동한다.")]
+        public float healCastDuration = 1.1f;
     }
 }
