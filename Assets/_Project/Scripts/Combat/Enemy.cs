@@ -139,13 +139,18 @@ namespace KRTD.Combat
             currentHp = ResolveMaxHp();
         }
 
+        // WaveDirector 의 hpMultiplier 곡선에서 전달된 배율. ResolveMaxHp 에 곱해진다.
+        private float hpMultiplier = 1f;
+
         /// <summary>
         /// 스포너에서 호출. 데이터와 경로를 주입하고 스폰 위치로 이동.
+        /// hpMultiplier 는 WaveDirector 의 난이도 곡선에서 전달 (기본 1).
         /// </summary>
-        public void Init(EnemyData data, EnemyPath path)
+        public void Init(EnemyData data, EnemyPath path, float hpMultiplier = 1f)
         {
             this.data = data;
             this.path = path;
+            this.hpMultiplier = Mathf.Max(0.01f, hpMultiplier);
 
             ApplyDataIfPresent();
             currentHp = ResolveMaxHp();
@@ -409,7 +414,7 @@ namespace KRTD.Combat
             healCastDuration = data.healCastDuration;
         }
 
-        private float ResolveMaxHp() => data != null ? data.maxHp : maxHp;
+        private float ResolveMaxHp() => (data != null ? data.maxHp : maxHp) * hpMultiplier;
         private float ResolveMoveSpeed() => data != null ? data.moveSpeed : moveSpeed;
         private int ResolveGoldReward() => data != null ? data.goldReward : goldReward;
         private int ResolveLifeDamage() => data != null ? data.lifeDamage : lifeDamage;

@@ -10,18 +10,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5301fb51ec8d1794caba6814898f6f05, type: 3}
-  m_Name: Wave_1
+  m_Name: Wave_3
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.WaveData
-  waveName: Wave 1
-  entries:
-  - pathId: 
-    startOffset: 0
-    enemy: {fileID: 11400000, guid: 9e241351fe8bd1e4f9bfb58d39d09ec7, type: 2}
-    count: 10
-    interval: 5
-  - pathId: 
-    startOffset: 0
-    enemy: {fileID: 11400000, guid: 37c6d242accdfe3448001905141214cf, type: 2}
-    count: 5
-    interval: 5
-  startDelay: 2
+  waveName: Wave
+  entries: []
+  startDelay: 0
