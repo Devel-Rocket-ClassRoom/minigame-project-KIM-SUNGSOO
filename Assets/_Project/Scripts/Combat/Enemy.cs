@@ -32,6 +32,10 @@ namespace KRTD.Combat
         [SerializeField] private AttackType attackType = AttackType.Physical;
         [Tooltip("원거리 공격용 투사체 프리팹. 비어있으면 근접(즉시) 데미지.")]
         [SerializeField] private Arrow arrowPrefab;
+        [Tooltip("0 이면 힐러 아님. 0 보다 크면 healInterval 마다 사거리 안 가장 많이 다친 아군 적을 회복.")]
+        [SerializeField] private float healAmount = 0f;
+        [SerializeField] private float healRange = 2.5f;
+        [SerializeField] private float healInterval = 1.5f;
 
         [Header("이동")]
         [Tooltip("웨이포인트에 이만큼 가까워지면 다음 점으로 진행")]
@@ -44,6 +48,8 @@ namespace KRTD.Combat
         [SerializeField] private string isAttackingBool = "isAttacking";
         [Tooltip("사망 시 호출할 Trigger 파라미터 이름. 비워두면 무시.")]
         [SerializeField] private string deathTrigger = "";
+        [Tooltip("힐 시전 시 호출할 Trigger 파라미터 이름. 컨트롤러에 파라미터가 없으면 비워둔다(Monk 기본).")]
+        [SerializeField] private string healTrigger = "";
 
         [Header("좌우 방향 반전")]
         [Tooltip("진행 방향에 따라 좌우 반전할 시각 Transform (보통 자식 Body). " +
@@ -59,8 +65,36 @@ namespace KRTD.Combat
         private Soldier currentSoldierTarget;
         private float nextAttackTime;
 
+        // 힐러 모드 상태
+        private float nextHealTime;
+
         public bool IsDead => currentHp <= 0f;
         public Vector3 Position => transform.position;
+
+        /// <summary>골인 처리됐는지. 골인한 적은 힐 대상에서 제외된다.</summary>
+        public bool HasReachedEnd => reachedEnd;
+
+        /// <summary>현재 체력이 최대치보다 적으면(=다쳤으면) true.</summary>
+        public bool IsWounded => currentHp < ResolveMaxHp();
+
+        /// <summary>0~1 체력 비율. 힐러가 "가장 많이 다친" 대상을 고를 때 사용.</summary>
+        public float HpRatio
+        {
+            get
+            {
+                float max = ResolveMaxHp();
+                return max > 0f ? currentHp / max : 1f;
+            }
+        }
+
+        /// <summary>
+        /// 체력 회복. 최대 체력을 넘지 않으며, 죽었거나 골인한 적에게는 무효.
+        /// </summary>
+        public void Heal(float amount)
+        {
+            if (IsDead || reachedEnd || amount <= 0f) return;
+            currentHp = Mathf.Min(ResolveMaxHp(), currentHp + amount);
+        }
 
         /// <summary>
         /// 현재 향하고 있는 다음 웨이포인트의 인덱스. 클수록 경로상 더 앞서 있다.
@@ -149,6 +183,19 @@ namespace KRTD.Combat
                 }
             }
 
+            // 1-b. 힐러: 다친 아군 적을 주기적으로 회복. (공격과 달리 멈추지 않고 이동하며 시전)
+            if (ResolveHealAmount() > 0f && Time.time >= nextHealTime)
+            {
+                Enemy ally = FindMostWoundedAllyInHealRange();
+                if (ally != null)
+                {
+                    ally.Heal(ResolveHealAmount());
+                    nextHealTime = Time.time + ResolveHealInterval();
+                    if (animator != null && !string.IsNullOrEmpty(healTrigger))
+                        animator.SetTrigger(healTrigger);
+                }
+            }
+
             // Run / Attack 전환을 Animator 에 알린다 (Attack 시 멈춰 있으므로 Run 루프가 어색하지 않게)
             if (animator != null && !string.IsNullOrEmpty(isAttackingBool))
                 animator.SetBool(isAttackingBool, engaging);
@@ -227,6 +274,32 @@ namespace KRTD.Combat
                 if (d < bestDistSq) { bestDistSq = d; nearest = s; }
             }
             return nearest;
+        }
+
+        // --- 힐러 -----------------------------------------------------------
+
+        /// <summary>
+        /// healRange 안에서 가장 많이 다친(HpRatio 가 가장 낮은) 아군 적을 찾는다.
+        /// 자기 자신, 죽었거나 골인한 적, 멀쩡한(다치지 않은) 적은 제외.
+        /// </summary>
+        private Enemy FindMostWoundedAllyInHealRange()
+        {
+            Vector3 origin = transform.position;
+            float r = ResolveHealRange();
+            float rangeSq = r * r;
+            Enemy best = null;
+            float bestRatio = float.MaxValue;
+
+            // NOTE: 매 시전마다 FindObjectsByType 는 비효율적. 적 수 늘면 매니저 등록 방식으로 교체.
+            Enemy[] enemies = Object.FindObjectsByType<Enemy>(FindObjectsSortMode.None);
+            foreach (var e in enemies)
+            {
+                if (e == null || e == this) continue;
+                if (e.IsDead || e.HasReachedEnd || !e.IsWounded) continue;
+                if ((e.Position - origin).sqrMagnitude > rangeSq) continue;
+                if (e.HpRatio < bestRatio) { bestRatio = e.HpRatio; best = e; }
+            }
+            return best;
         }
 
         private void AttackSoldier(Soldier s)
@@ -310,6 +383,9 @@ namespace KRTD.Combat
             attackInterval = data.attackInterval;
             attackType = data.attackType;
             arrowPrefab = data.arrowPrefab;
+            healAmount = data.healAmount;
+            healRange = data.healRange;
+            healInterval = data.healInterval;
         }
 
         private float ResolveMaxHp() => data != null ? data.maxHp : maxHp;
@@ -329,6 +405,9 @@ namespace KRTD.Combat
         private float ResolveAttackInterval() => data != null ? data.attackInterval : attackInterval;
         private AttackType ResolveAttackType() => data != null ? data.attackType : attackType;
         private Arrow ResolveArrowPrefab() => data != null && data.arrowPrefab != null ? data.arrowPrefab : arrowPrefab;
+        private float ResolveHealAmount() => data != null ? data.healAmount : healAmount;
+        private float ResolveHealRange() => data != null ? data.healRange : healRange;
+        private float ResolveHealInterval() => data != null ? data.healInterval : healInterval;
 
         private float ResolveDefense(AttackType type)
         {
