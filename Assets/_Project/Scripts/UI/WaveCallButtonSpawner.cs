@@ -32,7 +32,7 @@ namespace KRTD.UI
 
         private void Awake()
         {
-            if (director == null) director = FindObjectOfType<WaveDirector>();
+            if (director == null) director = FindFirstObjectByType<WaveDirector>();
             if (worldCamera == null) worldCamera = Camera.main;
         }
 

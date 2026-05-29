@@ -28,11 +28,11 @@ namespace KRTD.Abilities
 
         private void Awake()
         {
-            if (director == null) director = FindObjectOfType<WaveDirector>();
+            if (director == null) director = FindFirstObjectByType<WaveDirector>();
             if (abilities.Count == 0)
             {
-                // 비워뒀으면 씬에서 전부 수집 (비활성 포함하려면 includeInactive=true)
-                var found = FindObjectsOfType<SpecialAbility>(includeInactive: true);
+                // 비워뒀으면 씬에서 전부 수집 (비활성 포함)
+                var found = FindObjectsByType<SpecialAbility>(FindObjectsInactive.Include, FindObjectsSortMode.None);
                 abilities.AddRange(found);
             }
         }

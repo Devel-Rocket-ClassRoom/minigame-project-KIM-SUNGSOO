@@ -32,14 +32,12 @@ namespace KRTD.Game
 
         private void Awake()
         {
-            if (director == null) director = FindObjectOfType<WaveDirector>();
-            Debug.Log($"[Outcome/Watcher] Awake — director={(director != null ? director.name : "null")}");
+            if (director == null) director = FindFirstObjectByType<WaveDirector>();
         }
 
         private void OnEnable()
         {
             if (director != null) director.OnAllWavesDone += HandleAllWavesDone;
-            Debug.Log($"[Outcome/Watcher] OnEnable — 구독 {(director != null ? "OK" : "FAIL(director null)")}");
         }
 
         private void OnDisable()
@@ -51,7 +49,6 @@ namespace KRTD.Game
         {
             wavesDone = true;
             wavesDoneSinceTime = Time.time;
-            Debug.Log($"[Outcome/Watcher] OnAllWavesDone 수신 — Enemy.AliveCount={Enemy.AliveCount}");
         }
 
         private void Update()
@@ -69,7 +66,6 @@ namespace KRTD.Game
             if (Time.time - wavesDoneSinceTime < winConfirmDelay) return;
 
             triggered = true;
-            Debug.Log("[Outcome/Watcher] 조건 충족 → TriggerWin 호출");
             state.TriggerWin();
         }
     }
