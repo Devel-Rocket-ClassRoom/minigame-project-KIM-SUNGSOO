@@ -67,11 +67,6 @@ namespace KRTD.UI
             {
                 state.OnGameWon += HandleWin;
                 state.OnGameOver += HandleLose;
-                Debug.Log("[Outcome/View] OnEnable — GameState 구독 OK");
-            }
-            else
-            {
-                Debug.LogWarning("[Outcome/View] OnEnable 시점에 GameState.Instance 가 null. Start 에서 재시도.");
             }
         }
 
@@ -85,11 +80,10 @@ namespace KRTD.UI
                 {
                     state.OnGameWon += HandleWin;
                     state.OnGameOver += HandleLose;
-                    Debug.Log("[Outcome/View] Start 재시도 — GameState 구독 OK");
                 }
                 else
                 {
-                    Debug.LogError("[Outcome/View] Start 에서도 GameState.Instance 가 null — 씬에 GameState 가 없음.");
+                    Debug.LogError("[GameOutcomeView] Start 에서도 GameState.Instance 가 null — 씬에 GameState 가 없음.");
                 }
             }
         }
@@ -105,14 +99,12 @@ namespace KRTD.UI
 
         private void HandleWin()
         {
-            Debug.Log($"[Outcome/View] HandleWin — winPanel={(winPanel != null ? winPanel.name : "null")}");
             if (winPanel != null) winPanel.SetActive(true);
             FreezeIfNeeded();
         }
 
         private void HandleLose()
         {
-            Debug.Log($"[Outcome/View] HandleLose — losePanel={(losePanel != null ? losePanel.name : "null")}");
             if (losePanel != null) losePanel.SetActive(true);
             FreezeIfNeeded();
         }

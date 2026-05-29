@@ -30,7 +30,7 @@ namespace KRTD.UI
             button = GetComponent<Button>();
             button.onClick.AddListener(OnClicked);
 
-            if (director == null) director = FindObjectOfType<WaveDirector>();
+            if (director == null) director = FindFirstObjectByType<WaveDirector>();
         }
 
         private void Update()
