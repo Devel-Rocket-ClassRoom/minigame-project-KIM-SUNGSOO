@@ -85,7 +85,7 @@ MonoBehaviour:
   soldierDamageMultiplier: 1
   useNearestPath: 1
   path: {fileID: 0}
-  formationSpacing: 0.7
+  formationSpacing: 0.4
   deploymentRange: 5
   rangeGizmoColor: {r: 0.3, g: 0.6, b: 1, a: 0.85}
   pathTilemap: {fileID: 0}
