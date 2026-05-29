@@ -96,6 +96,9 @@ namespace KRTD.Combat
         public float DeploymentRange => deploymentRange;
         public Vector3 BarracksPosition => transform.position;
 
+        /// <summary>사용자가 지정한 커스텀 랠리(있다면). 업그레이드 시 새 인스턴스로 이식하기 위한 용도.</summary>
+        public Vector3? CustomRally => customRally;
+
         /// <summary>worldPos 가 사거리 안인지 검사.</summary>
         public bool IsInRange(Vector3 worldPos)
         {

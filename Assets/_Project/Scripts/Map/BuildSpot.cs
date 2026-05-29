@@ -1,6 +1,7 @@
 using UnityEngine;
 using KRTD.UI;
 using KRTD.Abilities;
+using KRTD.Combat;
 
 namespace KRTD.Map
 {
@@ -110,16 +111,26 @@ namespace KRTD.Map
         /// 현재 건물을 즉시 다른 단계로 교체한다 (업그레이드 등).
         /// PlaceBuilding 은 isOccupied 일 때 거부하므로 업그레이드 경로용 분리 메서드.
         /// 이전 투자 금액을 보존한 채로 next.cost 를 누적한다.
+        /// 배럭의 경우 사용자가 지정한 커스텀 랠리포인트도 새 인스턴스에 이식한다.
         /// </summary>
         public bool ReplaceBuilding(BuildingData next)
         {
             if (next == null) return false;
+
+            // 업그레이드 시 인스턴스가 새로 만들어지면서 사라질 상태를 미리 캡쳐.
+            // 현재는 배럭의 customRally 만 이식 대상.
+            Vector3? preservedRally = GetBuildingComponent<BarracksController>()?.CustomRally;
 
             int previousInvested = totalInvested;
             RemoveBuilding();              // totalInvested 가 0 으로 초기화됨
             if (!PlaceBuilding(next))      // PlaceBuilding 이 totalInvested = next.cost 로 세팅
                 return false;
             totalInvested = previousInvested + next.cost;
+
+            // 새 인스턴스도 배럭이면 이전 랠리 복원. 사거리/타일 조건이 안 맞으면 자동 모드로 자연 폴백.
+            if (preservedRally.HasValue)
+                GetBuildingComponent<BarracksController>()?.SetCustomRally(preservedRally.Value);
+
             return true;
         }
 
