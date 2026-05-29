@@ -170,6 +170,10 @@ namespace KRTD.Map
             var abilityCtrl = SpecialAbilityController.Instance;
             if (abilityCtrl != null && abilityCtrl.IsTargeting) return;
 
+            // 배럭 랠리 지정 모드 중에도 동일 — 랠리 컨트롤러가 클릭을 소비한다.
+            var rallyCtrl = KRTD.UI.BarracksRallyController.Instance;
+            if (rallyCtrl != null && rallyCtrl.IsTargeting) return;
+
             var menu = BuildMenuController.Instance;
             if (menu == null)
             {

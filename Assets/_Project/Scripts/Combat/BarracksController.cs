@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Tilemaps;
 using KRTD.Map;
 
 namespace KRTD.Combat
@@ -20,7 +21,7 @@ namespace KRTD.Combat
     ///   ├─ Body              (SpriteRenderer - Barracks 그림)
     ///   └─ (선택) SpawnPoint_1 ... SpawnPoint_3   ← 폴백용. path 모드에서는 무시됨.
     /// </summary>
-    public class BarracksController : MonoBehaviour
+    public class BarracksController : MonoBehaviour, ISelectableTower
     {
         [Header("유닛")]
         [Tooltip("이 배럭에서 소환할 보병 프리팹 (Soldier 컴포넌트 포함).")]
@@ -54,6 +55,11 @@ namespace KRTD.Combat
         [Tooltip("사거리 원의 색 (에디터 기즈모).")]
         [SerializeField] private Color rangeGizmoColor = new Color(0.3f, 0.6f, 1f, 0.85f);
 
+        [Header("랠리 가능 타일맵")]
+        [Tooltip("이 Tilemap 의 타일이 있는 셀에만 랠리 가능. " +
+            "비워두면 씬의 PathTilemapMarker 를 자동 탐색. 둘 다 없으면 PathTile 제약 해제(사거리만 검사).")]
+        [SerializeField] private Tilemap pathTilemap;
+
         [Header("폴백 (path 모드가 꺼졌거나 EnemyPath 가 없을 때)")]
         [Tooltip("폴백 시 사용될 위치들. soldierCount 보다 적으면 그만큼만 소환된다.")]
         [SerializeField] private Transform[] spawnPoints;
@@ -75,6 +81,145 @@ namespace KRTD.Combat
         private Vector3[] resolvedSpawnPositions;
         // 슬롯별로 현재 살아있는 보병 (사망 시 null).
         private Soldier[] activeSoldiers;
+
+        // 사용자가 지정한 커스텀 랠리 (사거리 안에 있을 때만 유효).
+        // 비어있으면 자동 결정(가장 가까운 경로 지점) 사용.
+        private Vector3? customRally;
+
+        // ISelectableTower 용 사거리 원 LineRenderer (필요 시 자동 생성).
+        private LineRenderer rangeCircle;
+
+        // --- 공용 API (BarracksRallyController 등 외부가 호출) ----------------
+
+        public float DeploymentRange => deploymentRange;
+        public Vector3 BarracksPosition => transform.position;
+
+        /// <summary>worldPos 가 사거리 안인지 검사.</summary>
+        public bool IsInRange(Vector3 worldPos)
+        {
+            return (worldPos - transform.position).sqrMagnitude <= deploymentRange * deploymentRange;
+        }
+
+        /// <summary>
+        /// 랠리로 유효한 위치인지: 사거리 안 AND PathTilemap 위에 타일 있음.
+        /// PathTilemapMarker 가 씬에 없으면 PathTile 제약 없이 사거리만 본다 (안전망).
+        /// 미리보기 색과 SetCustomRally 둘 다 이걸로 검증.
+        /// </summary>
+        public bool IsValidRally(Vector3 worldPos)
+        {
+            if (!IsInRange(worldPos)) return false;
+            var map = ResolvePathTilemap();
+            if (map == null) return true;
+            var cell = map.WorldToCell(worldPos);
+            return map.HasTile(cell);
+        }
+
+        private Tilemap cachedPathTilemap;
+        private Tilemap ResolvePathTilemap()
+        {
+            // 우선순위: 인스펙터 직접 드래그 → PathTilemapMarker 자동 탐색 → null
+            if (pathTilemap != null) return pathTilemap;
+            if (cachedPathTilemap != null) return cachedPathTilemap;
+
+            var marker = Object.FindFirstObjectByType<PathTilemapMarker>();
+            cachedPathTilemap = marker != null ? marker.Tilemap : null;
+            return cachedPathTilemap;
+        }
+
+        /// <summary>
+        /// 사용자가 새 랠리 포인트를 지정. 사거리 밖이거나 PathTile 위가 아니면 무시(false 반환).
+        /// 활성 보병들 모두 새 위치 기준으로 SetRallyPoint 갱신.
+        /// </summary>
+        public bool SetCustomRally(Vector3 worldPos)
+        {
+            if (!IsValidRally(worldPos)) return false;
+
+            customRally = worldPos;
+            RebuildFormationToCustom();
+            return true;
+        }
+
+        /// <summary>커스텀 랠리 해제 → 자동 결정(가장 가까운 경로 지점)으로 복귀.</summary>
+        public void ClearCustomRally()
+        {
+            customRally = null;
+            // 자동 모드로 복귀. resolvedSpawnPositions 재계산 + 활성 보병 갱신.
+            if (path != null) ApplyFormation(ComputePathFormation(path));
+        }
+
+        // 커스텀 랠리 중심으로 분산 배치 재계산하고 활성 보병에게 알린다.
+        private void RebuildFormationToCustom()
+        {
+            if (customRally == null) return;
+            Vector3 rally = customRally.Value;
+
+            // 경로 방향에 수직으로 분산 (자동 모드와 같은 모양 유지)
+            Vector3 dir = path != null && path.Count >= 2
+                ? ComputePathDirectionAt(path, rally)
+                : Vector3.right;
+            Vector3 perpendicular = new Vector3(-dir.y, dir.x, 0f);
+
+            int n = Mathf.Max(1, soldierCount);
+            var positions = new Vector3[n];
+            for (int i = 0; i < n; i++)
+            {
+                float offset = (i - (n - 1) * 0.5f) * formationSpacing;
+                positions[i] = rally + perpendicular * offset;
+            }
+            ApplyFormation(positions);
+        }
+
+        // 새 위치 배열로 resolvedSpawnPositions 를 갱신하고, 활성 보병의 SetRallyPoint 도 호출.
+        private void ApplyFormation(Vector3[] positions)
+        {
+            resolvedSpawnPositions = positions;
+            if (activeSoldiers == null) return;
+
+            int min = Mathf.Min(activeSoldiers.Length, positions.Length);
+            for (int i = 0; i < min; i++)
+            {
+                if (activeSoldiers[i] != null)
+                    activeSoldiers[i].SetRallyPoint(positions[i]);
+            }
+        }
+
+        // --- ISelectableTower ------------------------------------------------
+
+        public void SetRangeVisible(bool visible)
+        {
+            if (!visible)
+            {
+                if (rangeCircle != null) rangeCircle.gameObject.SetActive(false);
+                return;
+            }
+
+            if (rangeCircle == null)
+            {
+                var go = new GameObject("BarracksRange (auto)");
+                go.transform.SetParent(transform, false);
+                go.transform.localPosition = Vector3.zero;
+                rangeCircle = go.AddComponent<LineRenderer>();
+                rangeCircle.material = new Material(Shader.Find("Sprites/Default"));
+                rangeCircle.startWidth = 0.06f;
+                rangeCircle.endWidth = 0.06f;
+                rangeCircle.sortingOrder = 50;
+                rangeCircle.useWorldSpace = false;
+                rangeCircle.loop = true;
+                rangeCircle.startColor = rangeGizmoColor;
+                rangeCircle.endColor = rangeGizmoColor;
+
+                const int segments = 48;
+                rangeCircle.positionCount = segments;
+                for (int i = 0; i < segments; i++)
+                {
+                    float a = i * 2f * Mathf.PI / segments;
+                    rangeCircle.SetPosition(i, new Vector3(
+                        Mathf.Cos(a) * deploymentRange,
+                        Mathf.Sin(a) * deploymentRange, 0f));
+                }
+            }
+            rangeCircle.gameObject.SetActive(true);
+        }
 
         private void Start()
         {
@@ -152,11 +297,16 @@ namespace KRTD.Combat
 
         /// <summary>
         /// 랠리 포인트(보병들이 모일 중심점)를 결정한다.
-        /// - 가장 가까운 경로 지점이 사거리 내 → 그 경로 지점 사용 (보병이 경로 위에 있음)
-        /// - 사거리 밖 → 배럭 위치에 그대로 (이 배럭은 경로를 막을 수 없음을 시각적으로 드러냄)
+        /// 우선순위:
+        ///   1. 사용자가 SetCustomRally 로 지정한 위치 (사거리 안일 때만 유효)
+        ///   2. 가장 가까운 경로 지점이 사거리 내 → 그 경로 지점 사용
+        ///   3. 사거리 밖 → 배럭 위치에 그대로
         /// </summary>
         private Vector3 ResolveRallyPoint(EnemyPath p)
         {
+            // 사용자 지정 우선 (이미 SetCustomRally 가 사거리 검사를 한 뒤 저장).
+            if (customRally.HasValue) return customRally.Value;
+
             Vector3 barracksPos = transform.position;
             Vector3 nearestOnPath = FindNearestPointOnPath(p, barracksPos);
             float distance = Vector3.Distance(nearestOnPath, barracksPos);
