@@ -32,6 +32,9 @@ namespace KRTD.UI
         [Tooltip("판매 버튼 아이콘.")]
         [SerializeField] private Sprite sellIcon;
 
+        [Tooltip("배럭 랠리 변경 버튼 아이콘 (배럭일 때만 노출). 비워두면 텍스트 폴백.")]
+        [SerializeField] private Sprite rallyIcon;
+
         [Header("경제")]
         [Tooltip("타워 판매 시 누적 투자 금액의 몇 % 를 환급할지 (0~1). 예: 0.7 = 70% 환급.")]
         [Range(0f, 1f)]
@@ -48,9 +51,10 @@ namespace KRTD.UI
         // BuildSpot.OnMouseDown 으로 다시 들어와 메뉴가 재생성되는 것을 방지.
         private BuildSpot openSpot;
 
-        // 관리 메뉴 고정 위치 (도). 0 = 12시, 180 = 6시.
+        // 관리 메뉴 고정 위치 (도). 0 = 12시, 180 = 6시, 90 = 3시.
         private const float UpgradeAngleDeg = 0f;
         private const float SellAngleDeg = 180f;
+        private const float RallyAngleDeg = 90f;
 
         private void Awake()
         {
@@ -119,6 +123,20 @@ namespace KRTD.UI
             {
                 SellSpot(spot);
             }, overrideAngleDeg: SellAngleDeg, cost: -sellRefund));
+
+            // 배럭이면 랠리 변경 (3시 고정). 배럭이 아닌 타워에는 안 뜸.
+            var barracks = spot.GetBuildingComponent<BarracksController>();
+            if (barracks != null)
+            {
+                entries.Add(new RadialMenu.Entry(rallyIcon, () =>
+                {
+                    // 관리 메뉴 닫고 (사거리 원도 꺼짐) 랠리 컨트롤러가 다시 켠다.
+                    CloseMenu();
+                    var rally = BarracksRallyController.Instance;
+                    if (rally != null) rally.BeginTargeting(barracks);
+                    else Debug.LogWarning("[BuildMenuController] 씬에 BarracksRallyController 가 없다.");
+                }, overrideAngleDeg: RallyAngleDeg, cost: 0));
+            }
 
             // 메뉴를 여는 동안 타워의 사거리 원을 표시
             ShowTowerRange(spot);

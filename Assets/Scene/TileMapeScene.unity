@@ -787,6 +787,55 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1907343755664539213, guid: f2f9dc972b8586d45b83e3e3100a3169, type: 3}
   m_PrefabInstance: {fileID: 1444260601}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &228071358
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 228071360}
+  - component: {fileID: 228071359}
+  m_Layer: 0
+  m_Name: BarracksRallyController
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &228071359
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 228071358}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 983c8ae265f88554eabc4a44020d2808, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KRTD.UI.BarracksRallyController
+  worldCamera: {fileID: 0}
+  validColor: {r: 0.4, g: 1, b: 0.5, a: 0.95}
+  invalidColor: {r: 1, g: 0.3, b: 0.3, a: 0.95}
+  markerPrefab: {fileID: 0}
+  markerRadius: 0.35
+--- !u!4 &228071360
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 228071358}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.13645, y: 0.05928, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &246437320
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2211,6 +2260,7 @@ MonoBehaviour:
   buildConfig: {fileID: 11400000, guid: bd23258f90d8b1e438280af0b5a2544e, type: 2}
   upgradeIcon: {fileID: 21300000, guid: 1c0647c9dba61414898ffc20ac2d2e5b, type: 3}
   sellIcon: {fileID: 21300000, guid: ca89e4a7c1618426e8458f6eb7fc1444, type: 3}
+  rallyIcon: {fileID: 0}
   sellRefundRate: 0.7
 --- !u!4 &446748387
 Transform:
@@ -4528,6 +4578,7 @@ GameObject:
   - component: {fileID: 1011345393}
   - component: {fileID: 1011345395}
   - component: {fileID: 1011345394}
+  - component: {fileID: 1011345396}
   m_Layer: 0
   m_Name: PathTileMap
   m_TagString: Untagged
@@ -7404,6 +7455,18 @@ Tilemap:
     e31: 0
     e32: 0
     e33: 1
+--- !u!114 &1011345396
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1011345392}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c49839ef3146264eb012bfcf40ba51a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KRTD.Map.PathTilemapMarker
 --- !u!1 &1018709626
 GameObject:
   m_ObjectHideFlags: 0
@@ -20127,3 +20190,4 @@ SceneRoots:
   - {fileID: 1515019527}
   - {fileID: 787223776}
   - {fileID: 847160080}
+  - {fileID: 228071360}
