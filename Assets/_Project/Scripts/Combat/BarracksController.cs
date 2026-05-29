@@ -44,7 +44,9 @@ namespace KRTD.Combat
         [Tooltip("명시적으로 사용할 EnemyPath. 비워두면 씬에서 자동 탐색.")]
         [SerializeField] private EnemyPath path;
 
-        [Tooltip("보병 간 간격 (월드 단위). 경로 진행 방향에 수직으로 분산된다.")]
+        [Tooltip("랠리 포인트로부터 각 보병까지의 거리 (월드 단위). " +
+            "3명 이상이면 정다각형의 외접원 반지름(꼭짓점 0번은 적이 오는 쪽). " +
+            "1명이면 무시, 2명이면 좌우 분산 폭의 절반.")]
         [SerializeField] private float formationSpacing = 0.4f;
 
         [Header("배치 사거리")]
@@ -152,21 +154,10 @@ namespace KRTD.Combat
         {
             if (customRally == null) return;
             Vector3 rally = customRally.Value;
-
-            // 경로 방향에 수직으로 분산 (자동 모드와 같은 모양 유지)
             Vector3 dir = path != null && path.Count >= 2
                 ? ComputePathDirectionAt(path, rally)
                 : Vector3.right;
-            Vector3 perpendicular = new Vector3(-dir.y, dir.x, 0f);
-
-            int n = Mathf.Max(1, soldierCount);
-            var positions = new Vector3[n];
-            for (int i = 0; i < n; i++)
-            {
-                float offset = (i - (n - 1) * 0.5f) * formationSpacing;
-                positions[i] = rally + perpendicular * offset;
-            }
-            ApplyFormation(positions);
+            ApplyFormation(ComputeFormationPositions(rally, dir));
         }
 
         // 새 위치 배열로 resolvedSpawnPositions 를 갱신하고, 활성 보병의 SetRallyPoint 도 호출.
@@ -315,20 +306,52 @@ namespace KRTD.Combat
         }
 
         /// <summary>
-        /// 랠리 포인트를 중심으로 경로 진행 방향에 수직으로 N 명을 균등 분산한다.
+        /// 랠리 포인트를 중심으로 정다각형 방사 배치한다 (3명 → 정삼각형).
         /// </summary>
         private Vector3[] ComputePathFormation(EnemyPath p)
         {
             Vector3 rally = ResolveRallyPoint(p);
             Vector3 dir = ComputePathDirectionAt(p, rally);
-            // 2D 90° 회전: (x, y) → (-y, x). 경로 진행 방향에 수직인 단위벡터.
-            Vector3 perpendicular = new Vector3(-dir.y, dir.x, 0f);
+            return ComputeFormationPositions(rally, dir);
+        }
 
-            var positions = new Vector3[Mathf.Max(1, soldierCount)];
-            for (int i = 0; i < positions.Length; i++)
+        /// <summary>
+        /// 랠리를 중심으로 보병을 방사 배치한다.
+        ///   N=1 → 랠리 정확히
+        ///   N=2 → 경로 수직축 좌우 분산 (다각형이 모이지 않는 케이스)
+        ///   N≥3 → 정다각형. 꼭짓점 0번은 "적이 오는 방향(-pathDir)" 을 향한다 (첨병).
+        /// 외접원 반지름 = formationSpacing.
+        /// </summary>
+        private Vector3[] ComputeFormationPositions(Vector3 rally, Vector3 pathDir)
+        {
+            int n = Mathf.Max(1, soldierCount);
+            var positions = new Vector3[n];
+
+            if (n == 1)
             {
-                float offset = (i - (positions.Length - 1) * 0.5f) * formationSpacing;
-                positions[i] = rally + perpendicular * offset;
+                positions[0] = rally;
+                return positions;
+            }
+
+            Vector3 dir = pathDir.sqrMagnitude > 1e-6f ? pathDir.normalized : Vector3.right;
+            // 2D 90° 회전: (x, y) → (-y, x). 경로 진행 방향에 수직인 단위벡터.
+            Vector3 perp = new Vector3(-dir.y, dir.x, 0f);
+
+            if (n == 2)
+            {
+                positions[0] = rally + perp * formationSpacing;
+                positions[1] = rally - perp * formationSpacing;
+                return positions;
+            }
+
+            // N≥3: 정다각형. 꼭짓점 0번을 "적이 오는 쪽(-dir)" 으로 두기 위해 facing = -dir.
+            // angle=0 → facing 방향, angle=2π/N → 그 다음 꼭짓점.
+            Vector3 facing = -dir;
+            for (int i = 0; i < n; i++)
+            {
+                float angle = i * 2f * Mathf.PI / n;
+                Vector3 offset = facing * Mathf.Cos(angle) + perp * Mathf.Sin(angle);
+                positions[i] = rally + offset * formationSpacing;
             }
             return positions;
         }
