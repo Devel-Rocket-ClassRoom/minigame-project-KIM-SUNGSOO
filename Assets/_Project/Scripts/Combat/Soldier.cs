@@ -66,9 +66,20 @@ namespace KRTD.Combat
         private bool isDead;
         private Vector3 rallyPoint;
         private bool hasRallyPoint;
+        // 현재 랠리에 도달한 상태인지. false 인 동안엔 "배치 중" — 적과 무관.
+        // 일반적으로 한 번 true 가 되면 그대로 유지되지만, SetRallyPoint 로 랠리가
+        // 멀리 옮겨지면 다시 false 로 돌아간다 (새 랠리로 걸어가는 동안 무방비 방지).
+        private bool hasArrivedAtRally;
 
         public bool IsDead => isDead;
         public Vector3 Position => transform.position;
+
+        /// <summary>
+        /// 배치 중(아직 랠리에 도달 못한 상태) — 적과의 모든 상호작용을 무시한다.
+        /// 보병 자신도 적 탐지/공격 안 함, 적 측에서도 이 보병을 타겟에 넣지 않는다.
+        /// 랠리 반경 안에 들어온 시점에 해제. 외부에서 랠리를 멀리 옮기면 다시 배치 중으로 돌아감.
+        /// </summary>
+        public bool IsDeploying => !isDead && !hasArrivedAtRally;
 
         /// <summary>
         /// 죽음 순간 한 번 호출. BarracksController 가 구독해서 부활 카운트다운 시작.
@@ -84,6 +95,11 @@ namespace KRTD.Combat
                 rallyPoint = transform.position;
                 hasRallyPoint = true;
             }
+            // 스폰 위치가 이미 랠리 반경 안이면 즉시 활성화 (랠리=스폰위치인 기존 동작 호환).
+            // 배럭에서 랠리까지 걸어오는 새 동작은 BarracksController 가 별도 위치에 스폰하므로
+            // 이 시점엔 rallyArriveRadius 밖이고 hasArrivedAtRally 는 false 로 유지된다.
+            if ((rallyPoint - transform.position).sqrMagnitude <= rallyArriveRadius * rallyArriveRadius)
+                hasArrivedAtRally = true;
         }
 
         /// <summary>BarracksController 등 외부에서 명시적으로 랠리 위치를 지정.</summary>
@@ -91,6 +107,12 @@ namespace KRTD.Combat
         {
             rallyPoint = worldPos;
             hasRallyPoint = true;
+            // 새 랠리가 현재 위치에서 멀면 다시 배치 중(deploying) 으로 — 도달까지 적과 무관.
+            // 가까우면 그대로 active 유지(이미 도착 상태이거나 자체 스폰 케이스).
+            if ((rallyPoint - transform.position).sqrMagnitude > rallyArriveRadius * rallyArriveRadius)
+                hasArrivedAtRally = false;
+            else
+                hasArrivedAtRally = true;
         }
 
         /// <summary>
@@ -108,12 +130,43 @@ namespace KRTD.Combat
         {
             if (isDead) return;
 
+            bool nextIsAttacking = false;
+            bool nextIsRunning = false;
+
+            // 0. 배치 중(랠리 첫 도달 전): 적과의 상호작용 없이 랠리로만 이동.
+            //    Enemy.FindNearestSoldierInDetection 도 IsDeploying 인 보병을 건너뛰므로
+            //    이 구간 동안 보병은 적에게도 보이지 않는다.
+            if (!hasArrivedAtRally)
+            {
+                if (hasRallyPoint)
+                {
+                    Vector3 toRally = rallyPoint - transform.position;
+                    float arriveSq = rallyArriveRadius * rallyArriveRadius;
+                    if (toRally.sqrMagnitude <= arriveSq)
+                    {
+                        hasArrivedAtRally = true;
+                        // 도착한 첫 프레임은 idle 로 두고 다음 프레임부터 평상시 로직 진입.
+                    }
+                    else
+                    {
+                        nextIsRunning = true;
+                        UpdateFacing(toRally.x);
+                        MoveToward(rallyPoint);
+                    }
+                }
+                else
+                {
+                    // 랠리 정보가 없으면 deploying 의미가 없다 — 즉시 활성화.
+                    hasArrivedAtRally = true;
+                }
+
+                SyncAnimator(nextIsRunning, nextIsAttacking);
+                return;
+            }
+
             // 1. 탐지 범위 내 적 갱신 (없거나 사망했거나 탐지 이탈이면 재탐색).
             if (currentTarget == null || currentTarget.IsDead || !IsInDetection(currentTarget))
                 currentTarget = FindNearestEnemyInDetection();
-
-            bool nextIsAttacking = false;
-            bool nextIsRunning = false;
 
             if (currentTarget != null)
             {
@@ -150,12 +203,14 @@ namespace KRTD.Combat
                 // 랠리 도착 → Idle (둘 다 false 상태). facing 은 마지막 방향 유지.
             }
 
-            // Animator 동기화: 매 프레임 정확한 상태로
-            if (animator != null)
-            {
-                if (!string.IsNullOrEmpty(runBool)) animator.SetBool(runBool, nextIsRunning);
-                if (!string.IsNullOrEmpty(attackBool)) animator.SetBool(attackBool, nextIsAttacking);
-            }
+            SyncAnimator(nextIsRunning, nextIsAttacking);
+        }
+
+        private void SyncAnimator(bool running, bool attacking)
+        {
+            if (animator == null) return;
+            if (!string.IsNullOrEmpty(runBool)) animator.SetBool(runBool, running);
+            if (!string.IsNullOrEmpty(attackBool)) animator.SetBool(attackBool, attacking);
         }
 
         private void MoveToward(Vector3 worldPos)

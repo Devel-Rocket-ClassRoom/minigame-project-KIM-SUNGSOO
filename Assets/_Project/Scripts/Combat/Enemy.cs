@@ -305,6 +305,8 @@ namespace KRTD.Combat
             foreach (var s in soldiers)
             {
                 if (s == null || s.IsDead) continue;
+                // 배치 중인 보병(아직 랠리에 도달 못함)은 적에게도 보이지 않는다 — 무시.
+                if (s.IsDeploying) continue;
                 float d = (s.Position - origin).sqrMagnitude;
                 if (d > rangeSq) continue;
                 if (d < bestDistSq) { bestDistSq = d; nearest = s; }
