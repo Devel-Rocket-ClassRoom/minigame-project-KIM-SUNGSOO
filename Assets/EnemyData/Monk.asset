@@ -27,7 +27,7 @@ MonoBehaviour:
   attackInterval: 1
   attackType: 0
   arrowPrefab: {fileID: 0}
-  healAmount: 6
+  healAmount: 5.08
   healRange: 2.5
   healInterval: 2
   healCastDuration: 1.1
