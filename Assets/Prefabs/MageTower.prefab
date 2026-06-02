@@ -44,15 +44,16 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a7f1b3c2d4e5f6789a1b2c3d4e5f6a7b, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.MageTower
   range: 4.5
   attackInterval: 1.6
   damage: 5
+  attackType: 1
   magicPrefab: {fileID: 7281045623198746304, guid: c91e3a2b4f568079d1c2e3a4b5d6c7e8, type: 3}
   firePoint: {fileID: 4731829056103928502}
   unitAnimator: {fileID: 4731829056103928494}
-  castTrigger:
+  castTrigger: Cast
   rangeLineWidth: 0.08
   rangeColor: {r: 0.6, g: 0.4, b: 1, a: 0.85}
   rangeSegments: 48
@@ -257,7 +258,7 @@ Animator:
   m_LinearVelocityBlending: 0
   m_StabilizeFeet: 0
   m_AnimatePhysics: 0
-  m_WarningMessage:
+  m_WarningMessage: 
   m_HasTransformHierarchy: 1
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0

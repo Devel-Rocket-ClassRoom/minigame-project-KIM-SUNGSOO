@@ -49,10 +49,11 @@ MonoBehaviour:
   range: 6
   attackInterval: 0.8
   damage: 20
+  attackType: 0
   arrowPrefab: {fileID: 4185045966540784182, guid: 70c9a80d62cd9ff488f20aecab023f4c, type: 3}
   firePoint: {fileID: 5930100000000000012}
   unitAnimator: {fileID: 5930100000000000010}
-  shootTrigger: 
+  shootTrigger: Shoot
   rangeLineWidth: 0.08
   rangeColor: {r: 0.3, g: 1, b: 0.6, a: 0.85}
   rangeSegments: 48

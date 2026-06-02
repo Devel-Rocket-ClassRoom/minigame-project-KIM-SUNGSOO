@@ -53,7 +53,7 @@ MonoBehaviour:
   magicPrefab: {fileID: 7281045623198746304, guid: c91e3a2b4f568079d1c2e3a4b5d6c7e8, type: 3}
   firePoint: {fileID: 4731829056103928502}
   unitAnimator: {fileID: 4731829056103928494}
-  castTrigger: 
+  castTrigger: Cast
   rangeLineWidth: 0.08
   rangeColor: {r: 0.6, g: 0.4, b: 1, a: 0.85}
   rangeSegments: 48
