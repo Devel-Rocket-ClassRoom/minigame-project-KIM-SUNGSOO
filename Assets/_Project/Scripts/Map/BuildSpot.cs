@@ -112,14 +112,17 @@ namespace KRTD.Map
         /// PlaceBuilding 은 isOccupied 일 때 거부하므로 업그레이드 경로용 분리 메서드.
         /// 이전 투자 금액을 보존한 채로 next.cost 를 누적한다.
         /// 배럭의 경우 사용자가 지정한 커스텀 랠리포인트도 새 인스턴스에 이식한다.
+        /// 공격형 타워(아처/마법사)의 경우 잔여 공격 쿨다운도 이식한다 — 업그레이드 직후 즉시 한 발 더 발사되는 부자연스러움 방지.
         /// </summary>
         public bool ReplaceBuilding(BuildingData next)
         {
             if (next == null) return false;
 
             // 업그레이드 시 인스턴스가 새로 만들어지면서 사라질 상태를 미리 캡쳐.
-            // 현재는 배럭의 customRally 만 이식 대상.
+            //  - 배럭: customRally
+            //  - 공격형 타워: 잔여 공격 쿨다운 (ICooldownPreservable)
             Vector3? preservedRally = GetBuildingComponent<BarracksController>()?.CustomRally;
+            float? preservedCooldown = GetBuildingComponent<ICooldownPreservable>()?.RemainingCooldown;
 
             int previousInvested = totalInvested;
             RemoveBuilding();              // totalInvested 가 0 으로 초기화됨
@@ -130,6 +133,10 @@ namespace KRTD.Map
             // 새 인스턴스도 배럭이면 이전 랠리 복원. 사거리/타일 조건이 안 맞으면 자동 모드로 자연 폴백.
             if (preservedRally.HasValue)
                 GetBuildingComponent<BarracksController>()?.SetCustomRally(preservedRally.Value);
+
+            // 새 인스턴스가 ICooldownPreservable 이면 잔여 쿨다운 이식 → 업그레이드 직후 즉시 발사 차단.
+            if (preservedCooldown.HasValue)
+                GetBuildingComponent<ICooldownPreservable>()?.SetRemainingCooldown(preservedCooldown.Value);
 
             return true;
         }

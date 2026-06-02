@@ -13,7 +13,7 @@ namespace KRTD.Combat
     ///   ├─ MageUnit   (SpriteRenderer + Animator - Monk Idle)
     ///   └─ FirePoint  (빈 Transform - 마법이 생성되는 위치, 보통 Monk 손 근처)
     /// </summary>
-    public class MageTower : MonoBehaviour, ISelectableTower
+    public class MageTower : MonoBehaviour, ISelectableTower, ICooldownPreservable
     {
         [Header("스탯")]
         [SerializeField] private float range = 4.5f;
@@ -70,6 +70,13 @@ namespace KRTD.Combat
         public void ToggleRangeVisible()
         {
             SetRangeVisible(!rangeVisible);
+        }
+
+        // ICooldownPreservable: 업그레이드 시 BuildSpot.ReplaceBuilding 이 옛 인스턴스에서 캡쳐 → 새 인스턴스에 복원.
+        public float RemainingCooldown => Mathf.Max(0f, nextFireTime - Time.time);
+        public void SetRemainingCooldown(float remaining)
+        {
+            nextFireTime = Time.time + Mathf.Max(0f, remaining);
         }
 
         private void CreateRangeRenderer()
