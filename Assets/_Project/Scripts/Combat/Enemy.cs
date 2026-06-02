@@ -29,6 +29,9 @@ namespace KRTD.Combat
         [SerializeField] private float attackRange = 0.8f;
         [SerializeField] private float detectionRange = 2.5f;
         [SerializeField] private float attackInterval = 1f;
+        [Tooltip("사거리에 막 진입한 직후 첫 데미지가 나가기까지의 최소 대기 시간(초). " +
+            "Animator Run→Attack 블렌드 시간 이상으로 잡아 공격 모션이 반드시 보이도록 한다.")]
+        [SerializeField] private float attackWindupSeconds = 0.25f;
         [SerializeField] private AttackType attackType = AttackType.Physical;
         [Tooltip("원거리 공격용 투사체 프리팹. 비어있으면 근접(즉시) 데미지.")]
         [SerializeField] private Arrow arrowPrefab;
@@ -71,6 +74,9 @@ namespace KRTD.Combat
         // null 이면 자유 상태 — 다른 보병이 후보로 잡을 수 있다.
         // Soldier 측에서 SetTargetedBy 로 설정/해제한다.
         private Soldier targetedBy;
+
+        // 직전 프레임에 보병이 공격 사거리 안이었는지 — 사거리 밖→안 진입 시 windup 적용용.
+        private bool wasSoldierInAttackRange;
 
         // 힐러 모드 상태
         private float nextHealTime;
@@ -198,25 +204,48 @@ namespace KRTD.Combat
         {
             if (IsDead || reachedEnd) return;
 
-            // 1. 탐지범위 안 보병이 있으면 멈춤. 공격범위 안에 들어왔을 때만 실제 데미지.
+            // 1. 탐지범위 안 보병이 있으면 멈춤. 공격범위 안에 들어왔을 때만 실제 데미지 + 공격 자세.
             //    공격력 0 인 적은 둘 다 패스 (그냥 지나가는 적).
+            // engaging : 이번 프레임 이동 정지 여부
+            // isAttackingState : Animator 의 공격 자세(Attack 모션) 활성 여부 — 사거리 안일 때만 true
+            //   (detection 진입만으로 Attack 모션이 무한 재생되던 어색함 방지.
+            //    Animator 컨트롤러에서 isAttacking=false 인 동안엔 별도 Idle/대기 상태를 권장.)
             bool engaging = false;
+            bool isAttackingState = false;
             if (ResolveAttackDamage() > 0f)
             {
                 if (currentSoldierTarget == null || currentSoldierTarget.IsDead || !IsSoldierInDetection(currentSoldierTarget))
+                {
                     SetCurrentSoldierTarget(FindNearestSoldierInDetection());
+                    // 타겟이 끊기면 사거리 상태도 리셋 — 새 타겟의 첫 진입 때 다시 windup.
+                    if (currentSoldierTarget == null) wasSoldierInAttackRange = false;
+                }
 
                 if (currentSoldierTarget != null)
                 {
-                    engaging = true; // 탐지됨 → 무조건 멈춤
+                    engaging = true; // 탐지됨 → 무조건 멈춤 (자세는 아직 결정 X)
                     UpdateFacing(currentSoldierTarget.Position.x - transform.position.x);
 
-                    if (IsSoldierInAttackRange(currentSoldierTarget) && Time.time >= nextAttackTime)
+                    bool inAttackRange = IsSoldierInAttackRange(currentSoldierTarget);
+                    if (inAttackRange && !wasSoldierInAttackRange)
                     {
-                        AttackSoldier(currentSoldierTarget);
-                        nextAttackTime = Time.time + ResolveAttackInterval();
+                        // 사거리 진입 첫 프레임: 누적 쿨다운으로 즉발타가 나가지 않도록 windup 만큼 강제 대기.
+                        // Animator Run→Attack 블렌드 시간을 벌어 \"멈춤 → 모션 → 데미지\" 순서 보장.
+                        nextAttackTime = Mathf.Max(nextAttackTime, Time.time + ResolveAttackWindup());
                     }
-                    // 탐지는 됐지만 아직 공격범위 밖이면 대기 (보병이 다가올 때까지)
+                    wasSoldierInAttackRange = inAttackRange;
+
+                    if (inAttackRange)
+                    {
+                        // 사거리 안 — 공격 자세 활성. 보병이 옆자리 슬라이드로 들어오기 전엔 false 유지.
+                        isAttackingState = true;
+                        if (Time.time >= nextAttackTime)
+                        {
+                            AttackSoldier(currentSoldierTarget);
+                            nextAttackTime = Time.time + ResolveAttackInterval();
+                        }
+                    }
+                    // 탐지는 됐지만 아직 공격범위 밖이면 대기 (보병이 다가올 때까지) — 자세 X
                 }
             }
 
@@ -249,9 +278,11 @@ namespace KRTD.Combat
                 }
             }
 
-            // Run / Attack 전환을 Animator 에 알린다 (Attack 시 멈춰 있으므로 Run 루프가 어색하지 않게)
+            // Run / Attack 전환을 Animator 에 알린다.
+            // engaging(detection 진입 멈춤) 과 isAttackingState(사거리 안 공격 자세) 를 분리해서,
+            // 보병이 사거리 밖에서 다가오는 동안 Attack 모션이 무한 재생되는 어색함을 막는다.
             if (animator != null && !string.IsNullOrEmpty(isAttackingBool))
-                animator.SetBool(isAttackingBool, engaging);
+                animator.SetBool(isAttackingBool, isAttackingState);
 
             if (engaging) return; // 전투 중엔 이동 안 함
 
@@ -461,6 +492,7 @@ namespace KRTD.Combat
             attackRange = data.attackRange;
             detectionRange = data.detectionRange;
             attackInterval = data.attackInterval;
+            attackWindupSeconds = data.attackWindupSeconds;
             attackType = data.attackType;
             arrowPrefab = data.arrowPrefab;
             healAmount = data.healAmount;
@@ -484,6 +516,7 @@ namespace KRTD.Combat
             return detect < atk ? atk : detect;
         }
         private float ResolveAttackInterval() => data != null ? data.attackInterval : attackInterval;
+        private float ResolveAttackWindup() => data != null ? data.attackWindupSeconds : attackWindupSeconds;
         private AttackType ResolveAttackType() => data != null ? data.attackType : attackType;
         private Arrow ResolveArrowPrefab() => data != null && data.arrowPrefab != null ? data.arrowPrefab : arrowPrefab;
         private float ResolveHealAmount() => data != null ? data.healAmount : healAmount;
