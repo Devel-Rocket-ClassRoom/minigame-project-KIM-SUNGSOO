@@ -29,6 +29,9 @@ namespace KRTD.Combat
         [SerializeField] private float attackRange = 0.8f;
         [SerializeField] private float detectionRange = 2.5f;
         [SerializeField] private float attackInterval = 1f;
+        [Tooltip("사거리에 막 진입한 직후 첫 데미지가 나가기까지의 최소 대기 시간(초). " +
+            "Animator Run→Attack 블렌드 시간 이상으로 잡아 공격 모션이 반드시 보이도록 한다.")]
+        [SerializeField] private float attackWindupSeconds = 0.25f;
         [SerializeField] private AttackType attackType = AttackType.Physical;
         [Tooltip("원거리 공격용 투사체 프리팹. 비어있으면 근접(즉시) 데미지.")]
         [SerializeField] private Arrow arrowPrefab;
@@ -71,6 +74,9 @@ namespace KRTD.Combat
         // null 이면 자유 상태 — 다른 보병이 후보로 잡을 수 있다.
         // Soldier 측에서 SetTargetedBy 로 설정/해제한다.
         private Soldier targetedBy;
+
+        // 직전 프레임에 보병이 공격 사거리 안이었는지 — 사거리 밖→안 진입 시 windup 적용용.
+        private bool wasSoldierInAttackRange;
 
         // 힐러 모드 상태
         private float nextHealTime;
@@ -204,14 +210,27 @@ namespace KRTD.Combat
             if (ResolveAttackDamage() > 0f)
             {
                 if (currentSoldierTarget == null || currentSoldierTarget.IsDead || !IsSoldierInDetection(currentSoldierTarget))
+                {
                     SetCurrentSoldierTarget(FindNearestSoldierInDetection());
+                    // 타겟이 끊기면 사거리 상태도 리셋 — 새 타겟의 첫 진입 때 다시 windup.
+                    if (currentSoldierTarget == null) wasSoldierInAttackRange = false;
+                }
 
                 if (currentSoldierTarget != null)
                 {
                     engaging = true; // 탐지됨 → 무조건 멈춤
                     UpdateFacing(currentSoldierTarget.Position.x - transform.position.x);
 
-                    if (IsSoldierInAttackRange(currentSoldierTarget) && Time.time >= nextAttackTime)
+                    bool inAttackRange = IsSoldierInAttackRange(currentSoldierTarget);
+                    if (inAttackRange && !wasSoldierInAttackRange)
+                    {
+                        // 사거리 진입 첫 프레임: 누적 쿨다운으로 즉발타가 나가지 않도록 windup 만큼 강제 대기.
+                        // Animator Run→Attack 블렌드 시간을 벌어 \"멈춤 → 모션 → 데미지\" 순서 보장.
+                        nextAttackTime = Mathf.Max(nextAttackTime, Time.time + ResolveAttackWindup());
+                    }
+                    wasSoldierInAttackRange = inAttackRange;
+
+                    if (inAttackRange && Time.time >= nextAttackTime)
                     {
                         AttackSoldier(currentSoldierTarget);
                         nextAttackTime = Time.time + ResolveAttackInterval();
@@ -461,6 +480,7 @@ namespace KRTD.Combat
             attackRange = data.attackRange;
             detectionRange = data.detectionRange;
             attackInterval = data.attackInterval;
+            attackWindupSeconds = data.attackWindupSeconds;
             attackType = data.attackType;
             arrowPrefab = data.arrowPrefab;
             healAmount = data.healAmount;
@@ -484,6 +504,7 @@ namespace KRTD.Combat
             return detect < atk ? atk : detect;
         }
         private float ResolveAttackInterval() => data != null ? data.attackInterval : attackInterval;
+        private float ResolveAttackWindup() => data != null ? data.attackWindupSeconds : attackWindupSeconds;
         private AttackType ResolveAttackType() => data != null ? data.attackType : attackType;
         private Arrow ResolveArrowPrefab() => data != null && data.arrowPrefab != null ? data.arrowPrefab : arrowPrefab;
         private float ResolveHealAmount() => data != null ? data.healAmount : healAmount;
