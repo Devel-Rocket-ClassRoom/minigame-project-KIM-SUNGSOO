@@ -15,7 +15,7 @@ MonoBehaviour:
   waveName: Wave 1
   entries:
   - pathId: L
-    startOffset: 1
+    startOffset: 10
     enemy: {fileID: 11400000, guid: 37c6d242accdfe3448001905141214cf, type: 2}
     count: 10
     interval: 5

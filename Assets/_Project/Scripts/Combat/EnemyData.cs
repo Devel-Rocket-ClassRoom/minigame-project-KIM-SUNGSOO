@@ -56,6 +56,12 @@ namespace KRTD.Combat
         [Tooltip("연속 공격 사이의 텀(초).")]
         public float attackInterval = 1f;
 
+        [Tooltip("사거리에 막 진입한 직후 첫 데미지가 나가기까지의 최소 대기 시간(초). " +
+            "Animator 의 Run→Attack 블렌드 시간 이상으로 잡아 \"멈춤 → 공격 모션 → 데미지\" 순서가 보장된다. " +
+            "사거리 밖에서 누적된 쿨다운으로 즉발타가 나가는 것도 막아 준다.")]
+        [Min(0f)]
+        public float attackWindupSeconds = 0.25f;
+
         [Tooltip("적의 공격 유형. 보병 방어력 계산에 사용.")]
         public AttackType attackType = AttackType.Physical;
 
