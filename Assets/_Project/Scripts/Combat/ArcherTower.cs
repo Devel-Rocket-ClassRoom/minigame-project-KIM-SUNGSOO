@@ -12,7 +12,7 @@ namespace KRTD.Combat
     ///   ├─ ArcherUnit (SpriteRenderer + Animator - Idle/Shoot)
     ///   └─ FirePoint  (빈 Transform - 화살이 생성되는 위치, 보통 Archer 손 근처)
     /// </summary>
-    public class ArcherTower : MonoBehaviour, ISelectableTower
+    public class ArcherTower : MonoBehaviour, ISelectableTower, ICooldownPreservable
     {
         [Header("스탯")]
         [SerializeField] private float range = 4f;
@@ -72,6 +72,13 @@ namespace KRTD.Combat
         public void ToggleRangeVisible()
         {
             SetRangeVisible(!rangeVisible);
+        }
+
+        // ICooldownPreservable: 업그레이드 시 BuildSpot.ReplaceBuilding 이 옛 인스턴스에서 캡쳐 → 새 인스턴스에 복원.
+        public float RemainingCooldown => Mathf.Max(0f, nextFireTime - Time.time);
+        public void SetRemainingCooldown(float remaining)
+        {
+            nextFireTime = Time.time + Mathf.Max(0f, remaining);
         }
 
         private void CreateRangeRenderer()
