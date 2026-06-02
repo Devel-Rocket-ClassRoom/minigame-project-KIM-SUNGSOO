@@ -66,9 +66,37 @@ namespace KRTD.Combat
         private bool isDead;
         private Vector3 rallyPoint;
         private bool hasRallyPoint;
+        // 현재 랠리에 도달한 상태인지. false 인 동안엔 "배치 중" — 적과 무관.
+        // 일반적으로 한 번 true 가 되면 그대로 유지되지만, SetRallyPoint 로 랠리가
+        // 멀리 옮겨지면 다시 false 로 돌아간다 (새 랠리로 걸어가는 동안 무방비 방지).
+        private bool hasArrivedAtRally;
+
+        // 1:1 페어 락. 이 보병을 currentSoldierTarget 으로 잡고 있는 적이 있다면 그 인스턴스.
+        // null 이면 자유 상태 — 다른 적이 후보로 잡을 수 있다.
+        // Enemy 측에서 SetTargetedBy 로 설정/해제한다.
+        private Enemy targetedBy;
 
         public bool IsDead => isDead;
         public Vector3 Position => transform.position;
+
+        /// <summary>
+        /// 배치 중(아직 랠리에 도달 못한 상태) — 적과의 모든 상호작용을 무시한다.
+        /// 보병 자신도 적 탐지/공격 안 함, 적 측에서도 이 보병을 타겟에 넣지 않는다.
+        /// 랠리 반경 안에 들어온 시점에 해제. 외부에서 랠리를 멀리 옮기면 다시 배치 중으로 돌아감.
+        /// </summary>
+        public bool IsDeploying => !isDead && !hasArrivedAtRally;
+
+        /// <summary>
+        /// 이 보병을 노리고 있는 적(있다면). 1:1 페어 정책: 다른 적은 이 보병을 후보에 넣지 않는다.
+        /// null 이면 자유.
+        /// </summary>
+        public Enemy TargetedBy => targetedBy;
+
+        /// <summary>
+        /// Enemy 측에서 \"이 보병을 내 currentSoldierTarget 으로 잡았다 / 풀었다\" 알릴 때 호출.
+        /// null 을 넣으면 페어 해제. Enemy.SetCurrentSoldierTarget 이 자동으로 갱신한다 — 외부 직접 호출 비권장.
+        /// </summary>
+        public void SetTargetedBy(Enemy e) { targetedBy = e; }
 
         /// <summary>
         /// 죽음 순간 한 번 호출. BarracksController 가 구독해서 부활 카운트다운 시작.
@@ -84,6 +112,11 @@ namespace KRTD.Combat
                 rallyPoint = transform.position;
                 hasRallyPoint = true;
             }
+            // 스폰 위치가 이미 랠리 반경 안이면 즉시 활성화 (랠리=스폰위치인 기존 동작 호환).
+            // 배럭에서 랠리까지 걸어오는 새 동작은 BarracksController 가 별도 위치에 스폰하므로
+            // 이 시점엔 rallyArriveRadius 밖이고 hasArrivedAtRally 는 false 로 유지된다.
+            if ((rallyPoint - transform.position).sqrMagnitude <= rallyArriveRadius * rallyArriveRadius)
+                hasArrivedAtRally = true;
         }
 
         /// <summary>BarracksController 등 외부에서 명시적으로 랠리 위치를 지정.</summary>
@@ -91,6 +124,12 @@ namespace KRTD.Combat
         {
             rallyPoint = worldPos;
             hasRallyPoint = true;
+            // 새 랠리가 현재 위치에서 멀면 다시 배치 중(deploying) 으로 — 도달까지 적과 무관.
+            // 가까우면 그대로 active 유지(이미 도착 상태이거나 자체 스폰 케이스).
+            if ((rallyPoint - transform.position).sqrMagnitude > rallyArriveRadius * rallyArriveRadius)
+                hasArrivedAtRally = false;
+            else
+                hasArrivedAtRally = true;
         }
 
         /// <summary>
@@ -108,12 +147,43 @@ namespace KRTD.Combat
         {
             if (isDead) return;
 
-            // 1. 탐지 범위 내 적 갱신 (없거나 사망했거나 탐지 이탈이면 재탐색).
-            if (currentTarget == null || currentTarget.IsDead || !IsInDetection(currentTarget))
-                currentTarget = FindNearestEnemyInDetection();
-
             bool nextIsAttacking = false;
             bool nextIsRunning = false;
+
+            // 0. 배치 중(랠리 첫 도달 전): 적과의 상호작용 없이 랠리로만 이동.
+            //    Enemy.FindNearestSoldierInDetection 도 IsDeploying 인 보병을 건너뛰므로
+            //    이 구간 동안 보병은 적에게도 보이지 않는다.
+            if (!hasArrivedAtRally)
+            {
+                if (hasRallyPoint)
+                {
+                    Vector3 toRally = rallyPoint - transform.position;
+                    float arriveSq = rallyArriveRadius * rallyArriveRadius;
+                    if (toRally.sqrMagnitude <= arriveSq)
+                    {
+                        hasArrivedAtRally = true;
+                        // 도착한 첫 프레임은 idle 로 두고 다음 프레임부터 평상시 로직 진입.
+                    }
+                    else
+                    {
+                        nextIsRunning = true;
+                        UpdateFacing(toRally.x);
+                        MoveToward(rallyPoint);
+                    }
+                }
+                else
+                {
+                    // 랠리 정보가 없으면 deploying 의미가 없다 — 즉시 활성화.
+                    hasArrivedAtRally = true;
+                }
+
+                SyncAnimator(nextIsRunning, nextIsAttacking);
+                return;
+            }
+
+            // 1. 탐지 범위 내 적 갱신 (없거나 사망했거나 탐지 이탈이면 재탐색).
+            if (currentTarget == null || currentTarget.IsDead || !IsInDetection(currentTarget))
+                SetCurrentTarget(FindNearestEnemyInDetection());
 
             if (currentTarget != null)
             {
@@ -150,12 +220,30 @@ namespace KRTD.Combat
                 // 랠리 도착 → Idle (둘 다 false 상태). facing 은 마지막 방향 유지.
             }
 
-            // Animator 동기화: 매 프레임 정확한 상태로
-            if (animator != null)
-            {
-                if (!string.IsNullOrEmpty(runBool)) animator.SetBool(runBool, nextIsRunning);
-                if (!string.IsNullOrEmpty(attackBool)) animator.SetBool(attackBool, nextIsAttacking);
-            }
+            SyncAnimator(nextIsRunning, nextIsAttacking);
+        }
+
+        private void SyncAnimator(bool running, bool attacking)
+        {
+            if (animator == null) return;
+            if (!string.IsNullOrEmpty(runBool)) animator.SetBool(runBool, running);
+            if (!string.IsNullOrEmpty(attackBool)) animator.SetBool(attackBool, attacking);
+        }
+
+        /// <summary>
+        /// currentTarget 갱신. 이전 적의 TargetedBy 를 풀고, 새 적의 TargetedBy 를 this 로 설정해
+        /// 1:1 페어 lock 을 유지한다. 모든 currentTarget 변경은 이 메서드로만 한다.
+        /// internal: Enemy.Die/ReachEnd 의 cascading 정리에서 호출.
+        /// </summary>
+        internal void SetCurrentTarget(Enemy newTarget)
+        {
+            if (currentTarget == newTarget) return;
+            // 이전 페어 해제 — 단, 그 적이 정말로 나를 lock 하고 있을 때만 (방어적).
+            if (currentTarget != null && currentTarget.TargetedBy == this)
+                currentTarget.SetTargetedBy(null);
+            currentTarget = newTarget;
+            if (currentTarget != null)
+                currentTarget.SetTargetedBy(this);
         }
 
         private void MoveToward(Vector3 worldPos)
@@ -215,7 +303,10 @@ namespace KRTD.Combat
         private void Die()
         {
             isDead = true;
-            currentTarget = null;
+            // 1:1 페어 lock 해제 — 내가 노리던 적의 TargetedBy 풀기.
+            SetCurrentTarget(null);
+            // 나를 노리던 적도 자기 currentSoldierTarget 을 즉시 풀어 다른 보병을 잡을 수 있게.
+            if (targetedBy != null) targetedBy.SetCurrentSoldierTarget(null);
 
             if (animator != null && !string.IsNullOrEmpty(deathTrigger))
                 animator.SetTrigger(deathTrigger);
@@ -261,6 +352,8 @@ namespace KRTD.Combat
             foreach (var e in enemies)
             {
                 if (e == null || e.IsDead) continue;
+                // 1:1 페어 정책: 이미 다른 보병이 잡고 있는 적은 후보에서 제외.
+                if (e.TargetedBy != null && e.TargetedBy != this) continue;
 
                 float distSq = (e.Position - origin).sqrMagnitude;
                 if (distSq > rangeSq) continue;

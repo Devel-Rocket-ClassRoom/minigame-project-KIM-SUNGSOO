@@ -67,6 +67,11 @@ namespace KRTD.Combat
         private Soldier currentSoldierTarget;
         private float nextAttackTime;
 
+        // 1:1 페어 락. 이 적을 currentTarget 으로 잡고 있는 보병이 있다면 그 인스턴스.
+        // null 이면 자유 상태 — 다른 보병이 후보로 잡을 수 있다.
+        // Soldier 측에서 SetTargetedBy 로 설정/해제한다.
+        private Soldier targetedBy;
+
         // 힐러 모드 상태
         private float nextHealTime;
         private bool isHealing;     // 힐 모션 시전 중(이동 멈춤)
@@ -74,6 +79,18 @@ namespace KRTD.Combat
 
         public bool IsDead => currentHp <= 0f;
         public Vector3 Position => transform.position;
+
+        /// <summary>
+        /// 이 적을 노리고 있는 보병(있다면). 1:1 페어 정책: 다른 보병은 이 적을 후보에 넣지 않는다.
+        /// null 이면 자유.
+        /// </summary>
+        public Soldier TargetedBy => targetedBy;
+
+        /// <summary>
+        /// Soldier 측에서 \"이 적을 내 currentTarget 으로 잡았다 / 풀었다\" 알릴 때 호출.
+        /// null 을 넣으면 페어 해제. Soldier.SetCurrentTarget 이 자동으로 갱신한다 — 외부 직접 호출 비권장.
+        /// </summary>
+        public void SetTargetedBy(Soldier s) { targetedBy = s; }
 
         // 필드에 살아있는 적 수 — GameOutcomeWatcher 가 승리 조건 판정에 사용.
         // OnEnable/OnDisable 로 증감 (Destroy/Pool 어느 쪽이든 동기화).
@@ -187,7 +204,7 @@ namespace KRTD.Combat
             if (ResolveAttackDamage() > 0f)
             {
                 if (currentSoldierTarget == null || currentSoldierTarget.IsDead || !IsSoldierInDetection(currentSoldierTarget))
-                    currentSoldierTarget = FindNearestSoldierInDetection();
+                    SetCurrentSoldierTarget(FindNearestSoldierInDetection());
 
                 if (currentSoldierTarget != null)
                 {
@@ -280,6 +297,21 @@ namespace KRTD.Combat
 
         // --- 보병 공격 -------------------------------------------------------
 
+        /// <summary>
+        /// currentSoldierTarget 갱신. 이전 보병의 TargetedBy 를 풀고, 새 보병의 TargetedBy 를 this 로 설정해
+        /// 1:1 페어 lock 을 유지한다. 모든 currentSoldierTarget 변경은 이 메서드로만 한다.
+        /// internal: Soldier.Die 의 cascading 정리에서 호출.
+        /// </summary>
+        internal void SetCurrentSoldierTarget(Soldier newTarget)
+        {
+            if (currentSoldierTarget == newTarget) return;
+            if (currentSoldierTarget != null && currentSoldierTarget.TargetedBy == this)
+                currentSoldierTarget.SetTargetedBy(null);
+            currentSoldierTarget = newTarget;
+            if (currentSoldierTarget != null)
+                currentSoldierTarget.SetTargetedBy(this);
+        }
+
         private bool IsSoldierInAttackRange(Soldier s)
         {
             float r = ResolveAttackRange();
@@ -305,6 +337,10 @@ namespace KRTD.Combat
             foreach (var s in soldiers)
             {
                 if (s == null || s.IsDead) continue;
+                // 배치 중인 보병(아직 랠리에 도달 못함)은 적에게도 보이지 않는다 — 무시.
+                if (s.IsDeploying) continue;
+                // 1:1 페어 정책: 이미 다른 적이 잡고 있는 보병은 후보에서 제외.
+                if (s.TargetedBy != null && s.TargetedBy != this) continue;
                 float d = (s.Position - origin).sqrMagnitude;
                 if (d > rangeSq) continue;
                 if (d < bestDistSq) { bestDistSq = d; nearest = s; }
@@ -378,6 +414,11 @@ namespace KRTD.Combat
 
         private void Die()
         {
+            // 1:1 페어 lock 해제 — 내가 노리던 보병의 TargetedBy 풀기.
+            SetCurrentSoldierTarget(null);
+            // 나를 노리던 보병도 자기 currentTarget 을 즉시 풀어 다른 적을 잡을 수 있게.
+            if (targetedBy != null) targetedBy.SetCurrentTarget(null);
+
             // 처치 보상.
             var state = GameState.Instance;
             if (state != null) state.AddGold(ResolveGoldReward());
@@ -391,6 +432,9 @@ namespace KRTD.Combat
         private void ReachEnd()
         {
             reachedEnd = true;
+            // 골인 시점에도 페어 lock 정리 — 보병이 헛 swing 하지 않도록.
+            SetCurrentSoldierTarget(null);
+            if (targetedBy != null) targetedBy.SetCurrentTarget(null);
 
             var state = GameState.Instance;
             if (state != null) state.LoseLife(ResolveLifeDamage());

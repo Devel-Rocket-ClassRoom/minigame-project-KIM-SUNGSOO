@@ -361,12 +361,13 @@ namespace KRTD.Combat
 
         private void SpawnImmediate(int slot)
         {
-            var pos = resolvedSpawnPositions[slot];
-            var soldier = Instantiate(soldierPrefab, pos, Quaternion.identity);
+            var rally = resolvedSpawnPositions[slot];
+            // 보병은 배럭 위치에서 등장해서 랠리까지 걸어간다 — 그 동안은 Soldier.IsDeploying = true
+            // 이라 적과 상호작용하지 않는다 (issue #57: 배치 중 \"걸어가다 죽는\" 현상 방지).
+            var soldier = Instantiate(soldierPrefab, transform.position, Quaternion.identity);
             // 티어 배율 적용 (Lv1 은 1.0/1.0 이라 변화 없음, Lv2/Lv3 에서 강화됨)
             soldier.ApplyTier(soldierHpMultiplier, soldierDamageMultiplier);
-            // 랠리는 스폰 위치 (보병이 적 추격 후 복귀할 자리)
-            soldier.SetRallyPoint(pos);
+            soldier.SetRallyPoint(rally);
             int capturedSlot = slot;
             soldier.OnDeath += _ => StartCoroutine(RespawnAfterDelay(capturedSlot));
             activeSoldiers[slot] = soldier;
@@ -395,12 +396,12 @@ namespace KRTD.Combat
 
             yield return new WaitForSeconds(respawnDelay);
 
-            var pos = resolvedSpawnPositions[slot];
-
-            // 1) 흙먼지 펑
+            // 1) 흙먼지 펑 — 보병이 실제로 등장할 배럭 위치에 표시한다.
+            //    (SpawnImmediate 가 보병을 배럭 위치에 인스턴스화한 뒤 랠리로 행군시키므로
+            //     dust 도 같은 위치여야 시각 신호와 등장 위치가 일치.)
             if (spawnDustPrefab != null)
             {
-                var dust = Instantiate(spawnDustPrefab, pos, Quaternion.identity);
+                var dust = Instantiate(spawnDustPrefab, transform.position, Quaternion.identity);
                 if (dustDuration > 0f) Destroy(dust, dustDuration);
             }
 
