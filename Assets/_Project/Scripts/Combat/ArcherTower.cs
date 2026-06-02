@@ -141,6 +141,8 @@ namespace KRTD.Combat
                 return;
             }
 
+            FaceTarget(target);
+
             Vector3 spawnPos = firePoint != null ? firePoint.position : transform.position;
             Arrow arrow = Instantiate(arrowPrefab, spawnPos, Quaternion.identity);
             arrow.Init(target, damage, attackType);
@@ -150,6 +152,20 @@ namespace KRTD.Combat
             {
                 unitAnimator.SetTrigger(shootTrigger);
             }
+        }
+
+        // 발사 시점에만 좌우 반전 (적이 사거리 안에서 좌우로 흔들릴 때 사수가 빙글빙글 도는 것 방지).
+        // FirePoint 가 ArcherUnit 의 자식이라면 손 위치도 같이 미러링되어 자연스러움.
+        private void FaceTarget(Enemy target)
+        {
+            if (unitAnimator == null) return;
+            float dx = target.Position.x - transform.position.x;
+            if (Mathf.Abs(dx) < 0.01f) return;  // 같은 X 면 이전 방향 유지 (깜빡임 방지)
+
+            Transform unitTf = unitAnimator.transform;
+            Vector3 s = unitTf.localScale;
+            s.x = Mathf.Abs(s.x) * (dx < 0f ? -1f : 1f);
+            unitTf.localScale = s;
         }
 
 #if UNITY_EDITOR
