@@ -397,6 +397,8 @@ namespace KRTD.Combat
             foreach (var e in enemies)
             {
                 if (e == null || e.IsDead) continue;
+                // 공중 유닛은 보병이 공격할 수 없다 — 후보에서 제외 (ArcherTower/MageTower 가 담당).
+                if (e.IsFlying) continue;
                 // 1:1 페어 정책: 이미 다른 보병이 잡고 있는 적은 후보에서 제외.
                 if (e.TargetedBy != null && e.TargetedBy != this) continue;
 

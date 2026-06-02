@@ -17,6 +17,11 @@ namespace KRTD.Combat
         [Tooltip("스포너가 인스턴스화할 프리팹. Enemy 컴포넌트가 붙어 있어야 한다.")]
         public GameObject enemyPrefab;
 
+        [Header("이동 유형")]
+        [Tooltip("공중 유닛 여부. true 면 보병/지원군에게 막히지 않고 경로를 통과하며, " +
+            "보병도 이 적을 타겟에 넣지 않는다. ArcherTower/MageTower 는 공중/지상 모두 공격 가능.")]
+        public bool isFlying = false;
+
         [Header("스탯")]
         [Tooltip("최대 체력")]
         public float maxHp = 10f;
