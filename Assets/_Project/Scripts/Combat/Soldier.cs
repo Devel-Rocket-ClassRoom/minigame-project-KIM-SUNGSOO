@@ -71,6 +71,11 @@ namespace KRTD.Combat
         // 멀리 옮겨지면 다시 false 로 돌아간다 (새 랠리로 걸어가는 동안 무방비 방지).
         private bool hasArrivedAtRally;
 
+        // 1:1 페어 락. 이 보병을 currentSoldierTarget 으로 잡고 있는 적이 있다면 그 인스턴스.
+        // null 이면 자유 상태 — 다른 적이 후보로 잡을 수 있다.
+        // Enemy 측에서 SetTargetedBy 로 설정/해제한다.
+        private Enemy targetedBy;
+
         public bool IsDead => isDead;
         public Vector3 Position => transform.position;
 
@@ -80,6 +85,18 @@ namespace KRTD.Combat
         /// 랠리 반경 안에 들어온 시점에 해제. 외부에서 랠리를 멀리 옮기면 다시 배치 중으로 돌아감.
         /// </summary>
         public bool IsDeploying => !isDead && !hasArrivedAtRally;
+
+        /// <summary>
+        /// 이 보병을 노리고 있는 적(있다면). 1:1 페어 정책: 다른 적은 이 보병을 후보에 넣지 않는다.
+        /// null 이면 자유.
+        /// </summary>
+        public Enemy TargetedBy => targetedBy;
+
+        /// <summary>
+        /// Enemy 측에서 \"이 보병을 내 currentSoldierTarget 으로 잡았다 / 풀었다\" 알릴 때 호출.
+        /// null 을 넣으면 페어 해제. Enemy.SetCurrentSoldierTarget 이 자동으로 갱신한다 — 외부 직접 호출 비권장.
+        /// </summary>
+        public void SetTargetedBy(Enemy e) { targetedBy = e; }
 
         /// <summary>
         /// 죽음 순간 한 번 호출. BarracksController 가 구독해서 부활 카운트다운 시작.
@@ -166,7 +183,7 @@ namespace KRTD.Combat
 
             // 1. 탐지 범위 내 적 갱신 (없거나 사망했거나 탐지 이탈이면 재탐색).
             if (currentTarget == null || currentTarget.IsDead || !IsInDetection(currentTarget))
-                currentTarget = FindNearestEnemyInDetection();
+                SetCurrentTarget(FindNearestEnemyInDetection());
 
             if (currentTarget != null)
             {
@@ -211,6 +228,22 @@ namespace KRTD.Combat
             if (animator == null) return;
             if (!string.IsNullOrEmpty(runBool)) animator.SetBool(runBool, running);
             if (!string.IsNullOrEmpty(attackBool)) animator.SetBool(attackBool, attacking);
+        }
+
+        /// <summary>
+        /// currentTarget 갱신. 이전 적의 TargetedBy 를 풀고, 새 적의 TargetedBy 를 this 로 설정해
+        /// 1:1 페어 lock 을 유지한다. 모든 currentTarget 변경은 이 메서드로만 한다.
+        /// internal: Enemy.Die/ReachEnd 의 cascading 정리에서 호출.
+        /// </summary>
+        internal void SetCurrentTarget(Enemy newTarget)
+        {
+            if (currentTarget == newTarget) return;
+            // 이전 페어 해제 — 단, 그 적이 정말로 나를 lock 하고 있을 때만 (방어적).
+            if (currentTarget != null && currentTarget.TargetedBy == this)
+                currentTarget.SetTargetedBy(null);
+            currentTarget = newTarget;
+            if (currentTarget != null)
+                currentTarget.SetTargetedBy(this);
         }
 
         private void MoveToward(Vector3 worldPos)
@@ -270,7 +303,10 @@ namespace KRTD.Combat
         private void Die()
         {
             isDead = true;
-            currentTarget = null;
+            // 1:1 페어 lock 해제 — 내가 노리던 적의 TargetedBy 풀기.
+            SetCurrentTarget(null);
+            // 나를 노리던 적도 자기 currentSoldierTarget 을 즉시 풀어 다른 보병을 잡을 수 있게.
+            if (targetedBy != null) targetedBy.SetCurrentSoldierTarget(null);
 
             if (animator != null && !string.IsNullOrEmpty(deathTrigger))
                 animator.SetTrigger(deathTrigger);
@@ -316,6 +352,8 @@ namespace KRTD.Combat
             foreach (var e in enemies)
             {
                 if (e == null || e.IsDead) continue;
+                // 1:1 페어 정책: 이미 다른 보병이 잡고 있는 적은 후보에서 제외.
+                if (e.TargetedBy != null && e.TargetedBy != this) continue;
 
                 float distSq = (e.Position - origin).sqrMagnitude;
                 if (distSq > rangeSq) continue;
