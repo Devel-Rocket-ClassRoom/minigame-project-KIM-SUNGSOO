@@ -37,6 +37,16 @@ namespace KRTD.Combat
         [Tooltip("랠리(스폰) 위치 근처 이만큼 안이면 복귀 완료로 본다.")]
         [SerializeField] private float rallyArriveRadius = 0.1f;
 
+        [Header("측면 교전 (옆자리 슬라이드)")]
+        [Tooltip("적을 잡으면 그 적의 좌/우 옆자리(Y 동일)로 이동한 뒤 공격한다. " +
+            "이 값은 적의 위치에서 보병이 멈출 X 오프셋 — attackRange 의 50~80% 권장. " +
+            "0 이면 슬라이드 비활성(기존 동작).")]
+        [Min(0f)]
+        [SerializeField] private float sideEngageOffset = 0.7f;
+        [Tooltip("측면 슬롯에 도달했다고 판정할 반경. rallyArriveRadius 보다 작아도 된다.")]
+        [Min(0.01f)]
+        [SerializeField] private float engageArriveRadius = 0.05f;
+
         [Header("좌우 방향 반전")]
         [Tooltip("진행/타겟 방향에 따라 좌우 반전할 시각 Transform (보통 자식 Body). " +
             "비워두면 자기 자신 transform. 기본 스프라이트가 오른쪽(+X) 향한다고 가정.")]
@@ -75,6 +85,12 @@ namespace KRTD.Combat
         // null 이면 자유 상태 — 다른 적이 후보로 잡을 수 있다.
         // Enemy 측에서 SetTargetedBy 로 설정/해제한다.
         private Enemy targetedBy;
+
+        // 현재 페어에서 적의 어느 쪽 옆자리를 잡았는지. 페어가 끊기면 None.
+        // 페어 형성 시점의 X 비교로 결정해 페어 동안 유지(좌우 깜빡임 방지).
+        private EngageSlot engageSlot = EngageSlot.None;
+
+        private enum EngageSlot { None, Left, Right }
 
         public bool IsDead => isDead;
         public Vector3 Position => transform.position;
@@ -187,12 +203,16 @@ namespace KRTD.Combat
 
             if (currentTarget != null)
             {
-                // 항상 적 방향을 본다 (이동 중이든 공격 중이든)
-                UpdateFacing(currentTarget.Position.x - transform.position.x);
+                // 적의 좌/우 옆자리(같은 Y) 슬롯으로 이동한 뒤 공격한다.
+                // 슬라이드 도중엔 슬롯 방향(=결국 적이 있는 방향)으로 facing, 공격 중엔 적 방향 그대로.
+                Vector3 engagePos = ComputeEngagePosition(currentTarget);
+                Vector3 toEngage = engagePos - transform.position;
+                bool atEngageSlot = toEngage.sqrMagnitude <= engageArriveRadius * engageArriveRadius;
 
-                if (IsInAttackRange(currentTarget))
+                if (atEngageSlot && IsInAttackRange(currentTarget))
                 {
-                    // 2. 공격 범위 안: 멈춰서 공격
+                    // 2. 슬롯 도달 + 사거리 안: 멈춰서 공격. 적 방향 facing.
+                    UpdateFacing(currentTarget.Position.x - transform.position.x);
                     nextIsAttacking = true;
                     if (Time.time >= nextAttackTime)
                     {
@@ -202,9 +222,11 @@ namespace KRTD.Combat
                 }
                 else
                 {
-                    // 3. 탐지는 됐지만 사거리 밖 → 적을 향해 이동
+                    // 3. 슬롯 미도달 또는 사거리 밖 → 슬롯으로 슬라이드.
+                    //    적이 움직이면 매 프레임 슬롯도 따라 움직이므로 자연스럽게 \"옆에 붙어다님\".
                     nextIsRunning = true;
-                    MoveToward(currentTarget.Position);
+                    UpdateFacing(toEngage.x);
+                    MoveToward(engagePos);
                 }
             }
             else if (hasRallyPoint)
@@ -233,6 +255,7 @@ namespace KRTD.Combat
         /// <summary>
         /// currentTarget 갱신. 이전 적의 TargetedBy 를 풀고, 새 적의 TargetedBy 를 this 로 설정해
         /// 1:1 페어 lock 을 유지한다. 모든 currentTarget 변경은 이 메서드로만 한다.
+        /// 새 페어 형성 시 engageSlot 도 함께 결정(보병 X 가 적보다 작으면 적의 왼쪽 슬롯).
         /// internal: Enemy.Die/ReachEnd 의 cascading 정리에서 호출.
         /// </summary>
         internal void SetCurrentTarget(Enemy newTarget)
@@ -243,7 +266,29 @@ namespace KRTD.Combat
                 currentTarget.SetTargetedBy(null);
             currentTarget = newTarget;
             if (currentTarget != null)
+            {
                 currentTarget.SetTargetedBy(this);
+                // 페어 형성 시점의 X 비교로 슬롯 결정 — 페어 동안 유지.
+                engageSlot = transform.position.x < currentTarget.Position.x
+                    ? EngageSlot.Left
+                    : EngageSlot.Right;
+            }
+            else
+            {
+                engageSlot = EngageSlot.None;
+            }
+        }
+
+        /// <summary>
+        /// 페어된 적의 좌/우 옆자리(같은 Y) 좌표를 계산. sideEngageOffset 만큼 X 로 떨어진 지점.
+        /// sideEngageOffset 이 0 이면 적 위치 그대로 반환 — 기존 동작과 동일(슬라이드 없음).
+        /// </summary>
+        private Vector3 ComputeEngagePosition(Enemy target)
+        {
+            float dx = engageSlot == EngageSlot.Left ? -sideEngageOffset : sideEngageOffset;
+            Vector3 p = target.Position;
+            p.x += dx;
+            return p;
         }
 
         private void MoveToward(Vector3 worldPos)
