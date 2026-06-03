@@ -42,6 +42,11 @@ namespace KRTD.Combat
         [Tooltip("힐 시전 동안 멈춰 있는 시간(초). Heal 애니메이션 길이와 맞춘다.")]
         [SerializeField] private float healCastDuration = 1.1f;
 
+        [Header("이동 유형")]
+        [Tooltip("공중 유닛 여부 (fallback). EnemyData 가 있으면 그쪽 값을 우선. " +
+            "true 면 보병에게 막히지 않고 통과하며, 보병도 이 적을 타겟에 넣지 않는다.")]
+        [SerializeField] private bool isFlying = false;
+
         [Header("이동")]
         [Tooltip("웨이포인트에 이만큼 가까워지면 다음 점으로 진행")]
         [SerializeField] private float waypointReachRadius = 0.05f;
@@ -85,6 +90,12 @@ namespace KRTD.Combat
 
         public bool IsDead => currentHp <= 0f;
         public Vector3 Position => transform.position;
+
+        /// <summary>
+        /// 공중 유닛 여부 — data 우선, 없으면 fallback. 보병이 이 적을 타겟에서 제외하고,
+        /// 이 적도 보병을 무시하고 경로를 통과한다. ArcherTower/MageTower 는 영향 없음.
+        /// </summary>
+        public bool IsFlying => data != null ? data.isFlying : isFlying;
 
         /// <summary>
         /// 이 적을 노리고 있는 보병(있다면). 1:1 페어 정책: 다른 보병은 이 적을 후보에 넣지 않는다.
@@ -206,13 +217,14 @@ namespace KRTD.Combat
 
             // 1. 탐지범위 안 보병이 있으면 멈춤. 공격범위 안에 들어왔을 때만 실제 데미지 + 공격 자세.
             //    공격력 0 인 적은 둘 다 패스 (그냥 지나가는 적).
+            //    공중 유닛(IsFlying) 도 패스 — 보병에게 막히지 않고 경로 통과.
             // engaging : 이번 프레임 이동 정지 여부
             // isAttackingState : Animator 의 공격 자세(Attack 모션) 활성 여부 — 사거리 안일 때만 true
             //   (detection 진입만으로 Attack 모션이 무한 재생되던 어색함 방지.
             //    Animator 컨트롤러에서 isAttacking=false 인 동안엔 별도 Idle/대기 상태를 권장.)
             bool engaging = false;
             bool isAttackingState = false;
-            if (ResolveAttackDamage() > 0f)
+            if (ResolveAttackDamage() > 0f && !IsFlying)
             {
                 if (currentSoldierTarget == null || currentSoldierTarget.IsDead || !IsSoldierInDetection(currentSoldierTarget))
                 {
@@ -499,6 +511,7 @@ namespace KRTD.Combat
             healRange = data.healRange;
             healInterval = data.healInterval;
             healCastDuration = data.healCastDuration;
+            isFlying = data.isFlying;
         }
 
         private float ResolveMaxHp() => (data != null ? data.maxHp : maxHp) * hpMultiplier;
