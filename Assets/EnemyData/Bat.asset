@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Bat
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.EnemyData
   enemyName: Flying (Bat)
-  enemyPrefab: {fileID: 0}
+  enemyPrefab: {fileID: 8094173641835900607, guid: ea1df8a73bef44346a19868d9f65fc7d, type: 3}
   isFlying: 1
   maxHp: 12
   moveSpeed: 2
