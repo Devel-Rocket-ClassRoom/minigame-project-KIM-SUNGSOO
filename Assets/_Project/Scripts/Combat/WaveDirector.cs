@@ -221,12 +221,28 @@ namespace KRTD.Combat
                 yield break;
             }
 
-            int adjustedCount = Mathf.Max(1, Mathf.CeilToInt(entry.count * countMul));
+            // 보스: count/hp 곡선을 무시하고 정확히 1마리만, 데이터값 그대로 스폰.
+            //   - 보스가 여러 마리 복제되거나 hp 가 곡선에 휘둘리지 않도록 차단.
+            //   - entry.count 가 1 이 아닌 값으로 잘못 설정돼 있어도 경고만 띄우고 1로 강제.
+            int adjustedCount;
+            float adjustedHpMul;
+            if (entry.enemy.isBoss)
+            {
+                adjustedCount = 1;
+                adjustedHpMul = 1f;
+                if (entry.count > 1)
+                    Debug.LogWarning($"[WaveDirector] 보스 entry({entry.enemy.enemyName})는 count={entry.count} 이지만 1마리로 고정한다.");
+            }
+            else
+            {
+                adjustedCount = Mathf.Max(1, Mathf.CeilToInt(entry.count * countMul));
+                adjustedHpMul = hpMul;
+            }
             float adjustedInterval = Mathf.Max(0f, entry.interval * intervalMul);
 
             for (int n = 0; n < adjustedCount; n++)
             {
-                spawner.SpawnEnemy(entry.enemy, hpMul);
+                spawner.SpawnEnemy(entry.enemy, adjustedHpMul);
                 if (n < adjustedCount - 1)
                     yield return new WaitForSeconds(adjustedInterval);
             }

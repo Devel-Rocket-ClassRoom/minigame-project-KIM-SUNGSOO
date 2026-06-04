@@ -66,6 +66,12 @@ namespace KRTD.Combat
             "비워두면 자기 자신 transform 사용. 기본 스프라이트가 오른쪽(+X) 향한다고 가정.")]
         [SerializeField] private Transform visualRoot;
 
+        [Header("보스 페이즈 전환 시각 피드백 (isBoss + phases 가 있을 때만 동작)")]
+        [Tooltip("페이즈 진입 순간 자식 SpriteRenderer 들의 color 를 잠깐 이 색으로 덮어 깜빡인다.")]
+        [SerializeField] private Color phaseFlashColor = Color.white;
+        [Tooltip("페이즈 전환 플래시 지속 시간(초). 0 이하이면 플래시 생략.")]
+        [SerializeField] private float phaseFlashDuration = 0.15f;
+
         private float currentHp;
         private EnemyPath path;
         private int nextWaypointIndex;
@@ -87,6 +93,20 @@ namespace KRTD.Combat
         private float nextHealTime;
         private bool isHealing;     // 힐 모션 시전 중(이동 멈춤)
         private float healEndTime;  // 이 시각이 지나면 시전 종료 후 다시 이동
+
+        // --- 보스 페이즈 상태 ---
+        // 현재 활성 페이즈 인덱스. -1 = 아직 진입한 페이즈 없음(베이스 스탯 사용).
+        // HP 가 다시 차올라도 인덱스는 줄어들지 않는다 — 한 번 들어간 페이즈에서 후퇴 X.
+        private int activePhaseIndex = -1;
+
+        // 페이즈 오버라이드. null = 베이스/데이터값 사용, 값 있음 = 그 값으로 덮어씀.
+        // ApplyPhaseOverrides 가 활성 페이즈의 override* 체크박스를 보고 세팅한다.
+        private float? overrideMoveSpeed;
+        private float? overrideAttackDamage;
+        private float? overrideAttackInterval;
+        private float? overrideAttackRange;
+        private float? overridePhysicalDefense;
+        private float? overrideMagicDefense;
 
         public bool IsDead => currentHp <= 0f;
         public Vector3 Position => transform.position;
@@ -113,12 +133,26 @@ namespace KRTD.Combat
         // OnEnable/OnDisable 로 증감 (Destroy/Pool 어느 쪽이든 동기화).
         public static int AliveCount { get; private set; }
 
+        /// <summary>
+        /// 현재 활성 보스(있다면). 보스(EnemyData.isBoss=true)가 Init 될 때 자기 자신으로 설정되고,
+        /// OnDisable 에서 풀린다. BossHpBar 같은 UI 가 이 값을 폴링해 표시 여부를 결정한다.
+        /// 동시에 살아있는 보스는 1마리라는 가정 — 여러 마리면 마지막 Init 이 우선.
+        /// </summary>
+        public static Enemy ActiveBoss { get; private set; }
+
+        /// <summary>EnemyData.isBoss 가 true 면 true. data 가 없으면 false.</summary>
+        public bool IsBoss => data != null && data.isBoss;
+
         // Domain Reload 가 꺼진 경우(Enter Play Mode Options) 정적 값이 남아 다음 플레이에 누적되는 걸 방지.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void ResetStaticState() { AliveCount = 0; }
+        private static void ResetStaticState() { AliveCount = 0; ActiveBoss = null; }
 
         private void OnEnable() { AliveCount++; }
-        private void OnDisable() { AliveCount = Mathf.Max(0, AliveCount - 1); }
+        private void OnDisable()
+        {
+            AliveCount = Mathf.Max(0, AliveCount - 1);
+            if (ActiveBoss == this) ActiveBoss = null;
+        }
 
         /// <summary>골인 처리됐는지. 골인한 적은 힐 대상에서 제외된다.</summary>
         public bool HasReachedEnd => reachedEnd;
@@ -201,6 +235,15 @@ namespace KRTD.Combat
             currentHp = ResolveMaxHp();
             nextWaypointIndex = 0;
             reachedEnd = false;
+
+            // 보스 페이즈 초기화 — 풀링이 들어왔을 때를 대비해 명시적으로 리셋.
+            // 스폰 직후에도 임계값(예: 1.0) 이 정의돼 있다면 EvaluatePhases 가 잡아준다.
+            activePhaseIndex = -1;
+            ClearPhaseOverrides();
+            EvaluatePhases();
+
+            // 보스라면 정적 슬롯에 자기 자신 등록 — BossHpBar 가 이 값을 보고 표시한다.
+            if (IsBoss) ActiveBoss = this;
 
             // 스폰 위치 = 경로 시작점
             if (path != null && path.Count > 0)
@@ -449,7 +492,10 @@ namespace KRTD.Combat
             {
                 currentHp = 0f;
                 Die();
+                return;
             }
+            // 살아남은 경우에만 페이즈 평가 — 죽는 타격에서 페이즈 전환 플래시가 일어나지 않게.
+            EvaluatePhases();
         }
 
         /// <summary>공격 유형이 명시되지 않은 외부 호출 호환용. Physical 로 간주.</summary>
@@ -515,12 +561,12 @@ namespace KRTD.Combat
         }
 
         private float ResolveMaxHp() => (data != null ? data.maxHp : maxHp) * hpMultiplier;
-        private float ResolveMoveSpeed() => data != null ? data.moveSpeed : moveSpeed;
+        private float ResolveMoveSpeed() => overrideMoveSpeed ?? (data != null ? data.moveSpeed : moveSpeed);
         private int ResolveGoldReward() => data != null ? data.goldReward : goldReward;
         private int ResolveLifeDamage() => data != null ? data.lifeDamage : lifeDamage;
         private float ResolveMinDamage() => data != null ? data.minDamage : minDamage;
-        private float ResolveAttackDamage() => data != null ? data.attackDamage : attackDamage;
-        private float ResolveAttackRange() => data != null ? data.attackRange : attackRange;
+        private float ResolveAttackDamage() => overrideAttackDamage ?? (data != null ? data.attackDamage : attackDamage);
+        private float ResolveAttackRange() => overrideAttackRange ?? (data != null ? data.attackRange : attackRange);
         private float ResolveDetectionRange()
         {
             float detect = data != null ? data.detectionRange : detectionRange;
@@ -528,7 +574,7 @@ namespace KRTD.Combat
             // detectionRange 가 0 이거나 attackRange 보다 작으면 attackRange 와 동일하게 (즉시 공격 모드)
             return detect < atk ? atk : detect;
         }
-        private float ResolveAttackInterval() => data != null ? data.attackInterval : attackInterval;
+        private float ResolveAttackInterval() => overrideAttackInterval ?? (data != null ? data.attackInterval : attackInterval);
         private float ResolveAttackWindup() => data != null ? data.attackWindupSeconds : attackWindupSeconds;
         private AttackType ResolveAttackType() => data != null ? data.attackType : attackType;
         private Arrow ResolveArrowPrefab() => data != null && data.arrowPrefab != null ? data.arrowPrefab : arrowPrefab;
@@ -542,11 +588,92 @@ namespace KRTD.Combat
             switch (type)
             {
                 case AttackType.Physical:
-                    return data != null ? data.physicalDefense : physicalDefense;
+                    return overridePhysicalDefense ?? (data != null ? data.physicalDefense : physicalDefense);
                 case AttackType.Magic:
-                    return data != null ? data.magicDefense : magicDefense;
+                    return overrideMagicDefense ?? (data != null ? data.magicDefense : magicDefense);
                 default:
                     return 0f;
+            }
+        }
+
+        // --- 보스 페이즈 --------------------------------------------------------
+
+        /// <summary>
+        /// 현재 HP 비율이 phases 중 통과된 임계값 안에서 가장 낮은 임계값의 페이즈를 활성화한다.
+        /// 한 번 들어간 페이즈에서 후퇴는 없다(HP 가 다시 차도 인덱스 감소 X).
+        /// isBoss 가 아니거나 phases 가 비어있으면 no-op.
+        /// </summary>
+        private void EvaluatePhases()
+        {
+            if (data == null || !data.isBoss) return;
+            var phases = data.phases;
+            if (phases == null || phases.Count == 0) return;
+
+            float ratio = HpRatio;
+            int targetIndex = -1;
+            float lowestThreshold = float.MaxValue;
+            for (int i = 0; i < phases.Count; i++)
+            {
+                var p = phases[i];
+                if (p == null) continue;
+                // "이 임계값 이하로 떨어졌다" + "지금까지 본 것 중 가장 낮은 임계값"
+                if (ratio <= p.hpThreshold && p.hpThreshold <= lowestThreshold)
+                {
+                    lowestThreshold = p.hpThreshold;
+                    targetIndex = i;
+                }
+            }
+
+            if (targetIndex == -1 || targetIndex == activePhaseIndex) return;
+
+            activePhaseIndex = targetIndex;
+            ApplyPhaseOverrides(phases[targetIndex]);
+            TriggerPhaseFlash();
+        }
+
+        /// <summary>활성 페이즈의 override* 체크박스를 보고 nullable override 필드들을 세팅.</summary>
+        private void ApplyPhaseOverrides(EnemyData.BossPhase phase)
+        {
+            if (phase == null) return;
+            overrideMoveSpeed = phase.overrideMoveSpeed ? (float?)phase.moveSpeed : null;
+            overrideAttackDamage = phase.overrideAttackDamage ? (float?)phase.attackDamage : null;
+            overrideAttackInterval = phase.overrideAttackInterval ? (float?)phase.attackInterval : null;
+            overrideAttackRange = phase.overrideAttackRange ? (float?)phase.attackRange : null;
+            overridePhysicalDefense = phase.overridePhysicalDefense ? (float?)phase.physicalDefense : null;
+            overrideMagicDefense = phase.overrideMagicDefense ? (float?)phase.magicDefense : null;
+        }
+
+        private void ClearPhaseOverrides()
+        {
+            overrideMoveSpeed = null;
+            overrideAttackDamage = null;
+            overrideAttackInterval = null;
+            overrideAttackRange = null;
+            overridePhysicalDefense = null;
+            overrideMagicDefense = null;
+        }
+
+        private void TriggerPhaseFlash()
+        {
+            if (phaseFlashDuration <= 0f) return;
+            StartCoroutine(FlashSpritesCoroutine(phaseFlashColor, phaseFlashDuration));
+        }
+
+        // 자식 SpriteRenderer 들의 color 를 잠깐 tint 로 덮고 원복. 페이즈 전환 알림용.
+        private System.Collections.IEnumerator FlashSpritesCoroutine(Color tint, float duration)
+        {
+            var renderers = GetComponentsInChildren<SpriteRenderer>();
+            if (renderers.Length == 0) yield break;
+            var originals = new Color[renderers.Length];
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                originals[i] = renderers[i].color;
+                renderers[i].color = tint;
+            }
+            yield return new WaitForSeconds(duration);
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] != null) renderers[i].color = originals[i];
             }
         }
     }
