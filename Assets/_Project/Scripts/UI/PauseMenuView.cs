@@ -60,7 +60,9 @@ namespace KRTD.UI
 
         private void HandleQuit()
         {
-            if (Controller != null) Controller.Quit();
+            // 일시정지 메뉴의 "나가기" 는 앱 종료가 아니라 MainMenu 복귀.
+            // 실제 앱 종료는 MainMenu 의 종료 버튼이 담당.
+            if (Controller != null) Controller.ReturnToMainMenu();
         }
     }
 }

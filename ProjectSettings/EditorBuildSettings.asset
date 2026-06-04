@@ -4,6 +4,12 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scene/MainMenu.unity
+    guid: 562cc54698911f6468d939af69931684
+  - enabled: 1
+    path: Assets/Scene/TileMapeScene.unity
+    guid: 2d2cf78e96e161b45979bde9a1e19e18
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

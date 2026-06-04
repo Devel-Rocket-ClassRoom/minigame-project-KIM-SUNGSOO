@@ -128,15 +128,13 @@ namespace KRTD.UI
 
         private void HandleQuit()
         {
+            // "게임 끝내기" 는 앱 종료가 아니라 MainMenu 복귀.
+            // 실제 앱 종료는 MainMenu 의 종료 버튼만 담당.
             var pause = PauseController.Instance;
-            if (pause != null) { pause.Quit(); return; }
-            // 폴백
+            if (pause != null) { pause.ReturnToMainMenu(); return; }
+            // 폴백 — PauseController 가 없으면 직접 씬 로드.
             Time.timeScale = 1f;
-#if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-#else
-            Application.Quit();
-#endif
+            UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
         }
 
         private void HandleNextStage()

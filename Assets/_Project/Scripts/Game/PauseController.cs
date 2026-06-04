@@ -21,6 +21,10 @@ namespace KRTD.Game
     {
         public static PauseController Instance { get; private set; }
 
+        [Header("씬")]
+        [Tooltip("ReturnToMainMenu() 가 로드할 메인 메뉴 씬 이름. Build Settings 에 등록되어 있어야 함.")]
+        [SerializeField] private string mainMenuSceneName = "MainMenu";
+
         public bool IsPaused { get; private set; }
         public event Action<bool> OnPauseStateChanged;
 
@@ -72,6 +76,17 @@ namespace KRTD.Game
             Time.timeScale = 1f;
             var scene = SceneManager.GetActiveScene();
             SceneManager.LoadScene(scene.name);
+        }
+
+        /// <summary>
+        /// 본 게임 → 메인 메뉴 씬으로 복귀. (씬은 Build Settings 에 등록돼 있어야 함.)
+        /// 일시정지 메뉴의 "나가기" / 게임 종료 화면의 "게임 끝내기" 가 호출.
+        /// 진짜 앱 종료는 <see cref="Quit"/> 가 담당 — MainMenu 의 종료 버튼에서만 사용.
+        /// </summary>
+        public void ReturnToMainMenu()
+        {
+            Time.timeScale = 1f;
+            SceneManager.LoadScene(mainMenuSceneName);
         }
 
         /// <summary>빌드에선 어플리케이션 종료, 에디터에선 Play 모드 정지.</summary>
