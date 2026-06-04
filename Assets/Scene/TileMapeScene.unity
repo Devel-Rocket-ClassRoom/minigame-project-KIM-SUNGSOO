@@ -2437,6 +2437,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8eac4c6e3e999a8418410647983cb9f8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Game.PauseController
+  mainMenuSceneName: MainMenu
 --- !u!4 &503261036
 Transform:
   m_ObjectHideFlags: 0
@@ -8729,7 +8730,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\uB098\uAC00\uAE30"
+  m_text: "\uBA54\uC778 \uBA54\uB274"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 47cb3b78c65c4e240b39e1b8be11c8eb, type: 2}
   m_sharedMaterial: {fileID: -4311089228663234157, guid: 47cb3b78c65c4e240b39e1b8be11c8eb, type: 2}
