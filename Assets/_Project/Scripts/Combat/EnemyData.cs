@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace KRTD.Combat
@@ -87,5 +89,46 @@ namespace KRTD.Combat
         [Tooltip("힐 시전 동안 멈춰 있는 시간(초). 보통 Heal 애니메이션 길이와 맞춘다. " +
             "이 시간이 지나면 다시 이동한다.")]
         public float healCastDuration = 1.1f;
+
+        [Header("보스")]
+        [Tooltip("true 면 보스로 취급된다. WaveDirector 의 countMultiplier/hpMultiplier 가 무시되고 " +
+            "항상 1마리만, 데이터에 적힌 maxHp 그대로 스폰된다. phases 의 페이즈 전환 로직도 isBoss=true 일 때만 동작.")]
+        public bool isBoss = false;
+
+        [Tooltip("HP 임계값에 도달하면 적용되는 페이즈 변화 목록. isBoss=true 일 때만 사용. " +
+            "여러 페이즈가 동시에 통과되어도 항상 가장 낮은 임계값의 페이즈가 활성이 된다 (한 번 들어간 페이즈에서 되돌아가지 않음).")]
+        public List<BossPhase> phases = new List<BossPhase>();
+
+        /// <summary>
+        /// 보스의 HP 비율이 hpThreshold 이하로 떨어졌을 때 적용되는 스탯 오버라이드.
+        /// 체크된 항목만 변경되고, 체크되지 않은 항목은 베이스값을 유지한다.
+        /// </summary>
+        [Serializable]
+        public class BossPhase
+        {
+            [Tooltip("이 HP 비율(0~1) 이하가 되는 순간 이 페이즈로 진입한다. " +
+                "예: 0.7 = HP 70% 아래로 떨어졌을 때.")]
+            [Range(0f, 1f)]
+            public float hpThreshold = 0.5f;
+
+            [Header("스탯 오버라이드 (체크된 항목만 변경)")]
+            public bool overrideMoveSpeed = false;
+            public float moveSpeed = 1.5f;
+
+            public bool overrideAttackDamage = false;
+            public float attackDamage = 0f;
+
+            public bool overrideAttackInterval = false;
+            public float attackInterval = 1f;
+
+            public bool overrideAttackRange = false;
+            public float attackRange = 0.8f;
+
+            public bool overridePhysicalDefense = false;
+            public float physicalDefense = 0f;
+
+            public bool overrideMagicDefense = false;
+            public float magicDefense = 0f;
+        }
     }
 }

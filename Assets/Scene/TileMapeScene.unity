@@ -8981,9 +8981,7 @@ MonoBehaviour:
   - {fileID: 1988517150}
   - {fileID: 80793777}
   waves:
-  - {fileID: 11400000, guid: fca51b764e3781a409a5b28da1e11fbe, type: 2}
-  - {fileID: 11400000, guid: 7bd72c3ca1d84f44eba99d54c2966481, type: 2}
-  - {fileID: 11400000, guid: 2af39e8f5d9eff84086b78640d4b047c, type: 2}
+  - {fileID: 11400000, guid: b522b3695cfd54b488ba25f5dc424bc5, type: 2}
   autoStart: 1
   initialDelay: 1.5
   gapBetweenWaves: 10
