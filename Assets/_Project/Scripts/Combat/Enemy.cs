@@ -133,26 +133,12 @@ namespace KRTD.Combat
         // OnEnable/OnDisable 로 증감 (Destroy/Pool 어느 쪽이든 동기화).
         public static int AliveCount { get; private set; }
 
-        /// <summary>
-        /// 현재 활성 보스(있다면). 보스(EnemyData.isBoss=true)가 Init 될 때 자기 자신으로 설정되고,
-        /// OnDisable 에서 풀린다. BossHpBar 같은 UI 가 이 값을 폴링해 표시 여부를 결정한다.
-        /// 동시에 살아있는 보스는 1마리라는 가정 — 여러 마리면 마지막 Init 이 우선.
-        /// </summary>
-        public static Enemy ActiveBoss { get; private set; }
-
-        /// <summary>EnemyData.isBoss 가 true 면 true. data 가 없으면 false.</summary>
-        public bool IsBoss => data != null && data.isBoss;
-
         // Domain Reload 가 꺼진 경우(Enter Play Mode Options) 정적 값이 남아 다음 플레이에 누적되는 걸 방지.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void ResetStaticState() { AliveCount = 0; ActiveBoss = null; }
+        private static void ResetStaticState() { AliveCount = 0; }
 
         private void OnEnable() { AliveCount++; }
-        private void OnDisable()
-        {
-            AliveCount = Mathf.Max(0, AliveCount - 1);
-            if (ActiveBoss == this) ActiveBoss = null;
-        }
+        private void OnDisable() { AliveCount = Mathf.Max(0, AliveCount - 1); }
 
         /// <summary>골인 처리됐는지. 골인한 적은 힐 대상에서 제외된다.</summary>
         public bool HasReachedEnd => reachedEnd;
@@ -241,9 +227,6 @@ namespace KRTD.Combat
             activePhaseIndex = -1;
             ClearPhaseOverrides();
             EvaluatePhases();
-
-            // 보스라면 정적 슬롯에 자기 자신 등록 — BossHpBar 가 이 값을 보고 표시한다.
-            if (IsBoss) ActiveBoss = this;
 
             // 스폰 위치 = 경로 시작점
             if (path != null && path.Count > 0)
