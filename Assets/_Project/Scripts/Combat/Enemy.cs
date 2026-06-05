@@ -77,8 +77,8 @@ namespace KRTD.Combat
         private int nextWaypointIndex;
         private bool reachedEnd;
 
-        // 보병 공격 모드 상태
-        private Soldier currentSoldierTarget;
+        // 교전 모드 상태 — 보병(Soldier) / 영웅(Hero) 공통 (IEnemyEngageable).
+        private IEnemyEngageable currentEngageTarget;
         private float nextAttackTime;
 
         // 1:1 페어 락. 이 적을 currentTarget 으로 잡고 있는 보병이 있다면 그 인스턴스.
@@ -86,8 +86,8 @@ namespace KRTD.Combat
         // Soldier 측에서 SetTargetedBy 로 설정/해제한다.
         private Soldier targetedBy;
 
-        // 직전 프레임에 보병이 공격 사거리 안이었는지 — 사거리 밖→안 진입 시 windup 적용용.
-        private bool wasSoldierInAttackRange;
+        // 직전 프레임에 타겟이 공격 사거리 안이었는지 — 사거리 밖→안 진입 시 windup 적용용.
+        private bool wasTargetInAttackRange;
 
         // 힐러 모드 상태
         private float nextHealTime;
@@ -252,38 +252,51 @@ namespace KRTD.Combat
             bool isAttackingState = false;
             if (ResolveAttackDamage() > 0f && !IsFlying)
             {
-                if (currentSoldierTarget == null || currentSoldierTarget.IsDead || !IsSoldierInDetection(currentSoldierTarget))
+                if (currentEngageTarget == null || currentEngageTarget.IsDead || !IsTargetInDetection(currentEngageTarget))
                 {
-                    SetCurrentSoldierTarget(FindNearestSoldierInDetection());
+                    SetCurrentEngageTarget(FindNearestEngageableInDetection());
                     // 타겟이 끊기면 사거리 상태도 리셋 — 새 타겟의 첫 진입 때 다시 windup.
-                    if (currentSoldierTarget == null) wasSoldierInAttackRange = false;
+                    if (currentEngageTarget == null) wasTargetInAttackRange = false;
                 }
 
-                if (currentSoldierTarget != null)
+                if (currentEngageTarget != null)
                 {
                     engaging = true; // 탐지됨 → 무조건 멈춤 (자세는 아직 결정 X)
-                    UpdateFacing(currentSoldierTarget.Position.x - transform.position.x);
+                    UpdateFacing(currentEngageTarget.Position.x - transform.position.x);
 
-                    bool inAttackRange = IsSoldierInAttackRange(currentSoldierTarget);
-                    if (inAttackRange && !wasSoldierInAttackRange)
+                    bool inAttackRange = IsTargetInAttackRange(currentEngageTarget);
+                    if (inAttackRange && !wasTargetInAttackRange)
                     {
                         // 사거리 진입 첫 프레임: 누적 쿨다운으로 즉발타가 나가지 않도록 windup 만큼 강제 대기.
                         // Animator Run→Attack 블렌드 시간을 벌어 \"멈춤 → 모션 → 데미지\" 순서 보장.
                         nextAttackTime = Mathf.Max(nextAttackTime, Time.time + ResolveAttackWindup());
                     }
-                    wasSoldierInAttackRange = inAttackRange;
+                    wasTargetInAttackRange = inAttackRange;
 
                     if (inAttackRange)
                     {
-                        // 사거리 안 — 공격 자세 활성. 보병이 옆자리 슬라이드로 들어오기 전엔 false 유지.
+                        // 사거리 안 — 공격 자세 활성.
                         isAttackingState = true;
                         if (Time.time >= nextAttackTime)
                         {
-                            AttackSoldier(currentSoldierTarget);
+                            AttackTarget(currentEngageTarget);
                             nextAttackTime = Time.time + ResolveAttackInterval();
                         }
                     }
-                    // 탐지는 됐지만 아직 공격범위 밖이면 대기 (보병이 다가올 때까지) — 자세 X
+                    else if (!currentEngageTarget.ApproachesEnemies)
+                    {
+                        // 사거리 밖 + 타겟이 다가오지 않는 유닛(영웅 등) → 적이 직접 다가간다.
+                        // 보병처럼 ApproachesEnemies=true 인 타겟은 sideEngage 로 옆에 붙어주니 대기.
+                        Vector3 toEngage = currentEngageTarget.Position - transform.position;
+                        float engageDist = toEngage.magnitude;
+                        if (engageDist > 0.01f)
+                        {
+                            float engageStep = ResolveMoveSpeed() * Time.deltaTime;
+                            transform.position += toEngage / engageDist * Mathf.Min(engageStep, engageDist);
+                        }
+                        // engaging 유지 — 경로 진행은 멈춤. 도달하면 다음 프레임에 attack range 안.
+                    }
+                    // else: 탐지됐지만 사거리 밖 + 타겟이 알아서 다가옴 — 대기 (자세 X)
                 }
             }
 
@@ -364,57 +377,73 @@ namespace KRTD.Combat
             t.localScale = scale;
         }
 
-        // --- 보병 공격 -------------------------------------------------------
+        // --- 교전 (보병/영웅 공통) ------------------------------------------
 
         /// <summary>
-        /// currentSoldierTarget 갱신. 이전 보병의 TargetedBy 를 풀고, 새 보병의 TargetedBy 를 this 로 설정해
-        /// 1:1 페어 lock 을 유지한다. 모든 currentSoldierTarget 변경은 이 메서드로만 한다.
-        /// internal: Soldier.Die 의 cascading 정리에서 호출.
+        /// currentEngageTarget 갱신. 이전 타겟의 TargetedBy 를 풀고, 새 타겟의 TargetedBy 를 this 로 설정해
+        /// 1:1 페어 lock 을 유지한다. 모든 currentEngageTarget 변경은 이 메서드로만 한다.
+        /// internal: Soldier/Hero.Die 의 cascading 정리에서 호출.
         /// </summary>
-        internal void SetCurrentSoldierTarget(Soldier newTarget)
+        internal void SetCurrentEngageTarget(IEnemyEngageable newTarget)
         {
-            if (currentSoldierTarget == newTarget) return;
-            if (currentSoldierTarget != null && currentSoldierTarget.TargetedBy == this)
-                currentSoldierTarget.SetTargetedBy(null);
-            currentSoldierTarget = newTarget;
-            if (currentSoldierTarget != null)
-                currentSoldierTarget.SetTargetedBy(this);
+            if (currentEngageTarget == newTarget) return;
+            if (currentEngageTarget != null && currentEngageTarget.TargetedBy == this)
+                currentEngageTarget.SetTargetedBy(null);
+            currentEngageTarget = newTarget;
+            if (currentEngageTarget != null)
+                currentEngageTarget.SetTargetedBy(this);
         }
 
-        private bool IsSoldierInAttackRange(Soldier s)
+        private bool IsTargetInAttackRange(IEnemyEngageable t)
         {
             float r = ResolveAttackRange();
-            return (s.Position - transform.position).sqrMagnitude <= r * r;
+            return (t.Position - transform.position).sqrMagnitude <= r * r;
         }
 
-        private bool IsSoldierInDetection(Soldier s)
+        private bool IsTargetInDetection(IEnemyEngageable t)
         {
             float r = ResolveDetectionRange();
-            return (s.Position - transform.position).sqrMagnitude <= r * r;
+            return (t.Position - transform.position).sqrMagnitude <= r * r;
         }
 
-        private Soldier FindNearestSoldierInDetection()
+        /// <summary>
+        /// 탐지 범위 안의 가장 가까운 IEnemyEngageable (Soldier 또는 Hero) 후보를 찾는다.
+        /// 죽었거나 배치 중이거나 다른 적이 페어 락한 대상은 제외.
+        /// </summary>
+        private IEnemyEngageable FindNearestEngageableInDetection()
         {
             Vector3 origin = transform.position;
             float r = ResolveDetectionRange();
             float rangeSq = r * r;
-            Soldier nearest = null;
+            IEnemyEngageable nearest = null;
             float bestDistSq = float.MaxValue;
 
-            // NOTE: 매 프레임 FindObjectsByType 는 비효율적. 보병 수 늘면 매니저 등록 방식으로 교체.
+            // NOTE: 매 프레임 FindObjectsByType 는 비효율적. 유닛 수 늘면 매니저 등록 방식으로 교체.
             Soldier[] soldiers = Object.FindObjectsByType<Soldier>(FindObjectsSortMode.None);
             foreach (var s in soldiers)
-            {
-                if (s == null || s.IsDead) continue;
-                // 배치 중인 보병(아직 랠리에 도달 못함)은 적에게도 보이지 않는다 — 무시.
-                if (s.IsDeploying) continue;
-                // 1:1 페어 정책: 이미 다른 적이 잡고 있는 보병은 후보에서 제외.
-                if (s.TargetedBy != null && s.TargetedBy != this) continue;
-                float d = (s.Position - origin).sqrMagnitude;
-                if (d > rangeSq) continue;
-                if (d < bestDistSq) { bestDistSq = d; nearest = s; }
-            }
+                ConsiderCandidate(s, origin, rangeSq, ref nearest, ref bestDistSq);
+
+            // 영웅은 씬에 최대 1마리 — 정적 슬롯으로 바로 접근.
+            if (Hero.Instance != null)
+                ConsiderCandidate(Hero.Instance, origin, rangeSq, ref nearest, ref bestDistSq);
+
             return nearest;
+        }
+
+        private void ConsiderCandidate(IEnemyEngageable cand, Vector3 origin, float rangeSq,
+            ref IEnemyEngageable nearest, ref float bestDistSq)
+        {
+            if (cand == null || cand.IsDead) return;
+            // Unity null 체크 — 파괴된 MonoBehaviour 도 걸러야 한다.
+            if ((cand as Object) == null) return;
+            // 배치 중(Soldier 만 의미 있음) — Hero 는 항상 false 반환.
+            if (cand.IsDeploying) return;
+            // 1:1 페어 정책: 이미 다른 적이 잡고 있는 후보는 제외.
+            // 단, AcceptsMultipleAttackers=true 인 대상(영웅 등) 은 멀티 어태커 허용 — 페어 lock 우회.
+            if (!cand.AcceptsMultipleAttackers && cand.TargetedBy != null && cand.TargetedBy != this) return;
+            float d = (cand.Position - origin).sqrMagnitude;
+            if (d > rangeSq) return;
+            if (d < bestDistSq) { bestDistSq = d; nearest = cand; }
         }
 
         // --- 힐러 -----------------------------------------------------------
@@ -443,19 +472,20 @@ namespace KRTD.Combat
             return best;
         }
 
-        private void AttackSoldier(Soldier s)
+        private void AttackTarget(IEnemyEngageable t)
         {
             Arrow prefab = ResolveArrowPrefab();
             if (prefab != null)
             {
-                // 원거리: 투사체 발사. 화살이 보병에게 도달하면 그 시점에 데미지가 들어간다.
+                // 원거리: 투사체 발사. 화살이 도달하면 그 시점에 데미지가 들어간다.
+                // Arrow 는 IDamageable 을 받으므로 Soldier/Hero 둘 다 그대로 작동.
                 var arrow = Instantiate(prefab, transform.position, Quaternion.identity);
-                arrow.Init(s, ResolveAttackDamage(), ResolveAttackType());
+                arrow.Init(t, ResolveAttackDamage(), ResolveAttackType());
             }
             else
             {
                 // 근접: 즉시 데미지.
-                s.TakeDamage(ResolveAttackDamage(), ResolveAttackType());
+                t.TakeDamage(ResolveAttackDamage(), ResolveAttackType());
             }
         }
 
@@ -486,8 +516,8 @@ namespace KRTD.Combat
 
         private void Die()
         {
-            // 1:1 페어 lock 해제 — 내가 노리던 보병의 TargetedBy 풀기.
-            SetCurrentSoldierTarget(null);
+            // 1:1 페어 lock 해제 — 내가 노리던 타겟의 TargetedBy 풀기.
+            SetCurrentEngageTarget(null);
             // 나를 노리던 보병도 자기 currentTarget 을 즉시 풀어 다른 적을 잡을 수 있게.
             if (targetedBy != null) targetedBy.SetCurrentTarget(null);
 
@@ -505,7 +535,7 @@ namespace KRTD.Combat
         {
             reachedEnd = true;
             // 골인 시점에도 페어 lock 정리 — 보병이 헛 swing 하지 않도록.
-            SetCurrentSoldierTarget(null);
+            SetCurrentEngageTarget(null);
             if (targetedBy != null) targetedBy.SetCurrentTarget(null);
 
             var state = GameState.Instance;
