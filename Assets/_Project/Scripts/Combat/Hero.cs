@@ -49,7 +49,9 @@ namespace KRTD.Combat
         [SerializeField] private string runBool = "isRunning";
         [SerializeField] private string attackBool = "isAttacking";
         [SerializeField] private string attackTrigger = "";
-        [SerializeField] private string deathTrigger = "Death";
+        [Tooltip("사망 상태 Bool 파라미터 이름. true=죽음, false=부활. " +
+            "Animator 에 isDead Bool 추가 + Idle/Run/Attack → Die 전환(true), Die → Idle 전환(false) 필요.")]
+        [SerializeField] private string deathBool = "isDead";
 
         [Header("부활 시각 처리")]
         [Tooltip("사망 동안 자식 visualRoot 를 비활성화해서 시각적으로 사라지게 한다.")]
@@ -282,8 +284,9 @@ namespace KRTD.Combat
             // 나를 노리던 적도 자기 currentEngageTarget 을 즉시 풀어 다른 후보를 잡을 수 있게.
             if (targetedBy != null) targetedBy.SetCurrentEngageTarget(null);
 
-            if (animator != null && !string.IsNullOrEmpty(deathTrigger))
-                animator.SetTrigger(deathTrigger);
+            // Animator 사망 상태 진입 — Bool true.
+            if (animator != null && !string.IsNullOrEmpty(deathBool))
+                animator.SetBool(deathBool, true);
 
             if (hideVisualWhileDead)
             {
@@ -311,11 +314,16 @@ namespace KRTD.Combat
                 t.gameObject.SetActive(true);
             }
 
-            // Animator 가 Die 상태에서 멈춰있으면 Die 클립의 마지막 프레임이 그대로 보임.
-            // 강제로 Idle 상태로 되돌려 정상 비주얼 복원. (Die 에서 나가는 전환이 없는 경우 대응)
+            // Animator 사망 상태 해제 — Bool false → Die→Idle 전환 발화.
+            if (animator != null && !string.IsNullOrEmpty(deathBool))
+                animator.SetBool(deathBool, false);
+
+            // Idle 클립이 일부 자식 transform(다리 등)을 keyframe 하지 않으면 Die 의 마지막 자세가
+            // 그대로 남는다. WriteDefaultValues() 로 모든 애니메이트 속성을 기본값(스폰 직후)으로
+            // 강제 복원해 누운 자세 등 잔재 제거.
             if (animator != null && animator.runtimeAnimatorController != null)
             {
-                animator.Play("Idle", 0, 0f);
+                animator.WriteDefaultValues();
             }
         }
 
