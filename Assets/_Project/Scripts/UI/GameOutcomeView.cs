@@ -13,6 +13,7 @@ namespace KRTD.UI
     ///   GameOutcomeRoot (이 컴포넌트, 시작 시 두 패널 모두 비활성)
     ///   ├─ WinPanel
     ///   │   ├─ Title "Stage Clear"
+    ///   │   ├─ Stars (Star0, Star1, Star2 — Image 3개를 starIcons 에 좌→우 순서로 연결)
     ///   │   ├─ NextStageButton  "다음 스테이지"     (TODO 동작)
     ///   │   ├─ StageSelectButton "스테이지 선택"   (TODO 동작)
     ///   │   └─ QuitButton        "게임 끝내기"
@@ -37,6 +38,22 @@ namespace KRTD.UI
         [SerializeField] private Button loseRestartButton;
         [SerializeField] private Button loseStageSelectButton;
         [SerializeField] private Button loseQuitButton;
+
+        [Header("Win 패널 성급(별점)")]
+        [Tooltip("WinPanel 안에 배치한 별 Image 3개. 좌→우 순서. 길이가 3 이 아니면 성급 표시를 건너뛴다.")]
+        [SerializeField] private Image[] starIcons;
+        [Tooltip("켜진(획득) 별 스프라이트. 비워두면 색만 바꿔서 표현.")]
+        [SerializeField] private Sprite starOnSprite;
+        [Tooltip("꺼진(미획득) 별 스프라이트. 비워두면 색만 바꿔서 표현.")]
+        [SerializeField] private Sprite starOffSprite;
+        [Tooltip("스프라이트가 비어있을 때 사용할 켜진 별 색.")]
+        [SerializeField] private Color starOnColor = Color.white;
+        [Tooltip("스프라이트가 비어있을 때 사용할 꺼진 별 색.")]
+        [SerializeField] private Color starOffColor = new Color(0.25f, 0.25f, 0.25f, 1f);
+        [Tooltip("★★★ 임계값. 남은 라이프 비율이 이 값 이상이면 별 3개. 기본 1.0 = 피해 0.")]
+        [Range(0f, 1f)] [SerializeField] private float threeStarRatio = 1f;
+        [Tooltip("★★☆ 임계값. 남은 라이프 비율이 이 값 이상이면 별 2개. 그 미만(0 초과)은 별 1개.")]
+        [Range(0f, 1f)] [SerializeField] private float twoStarRatio = 0.5f;
 
         [Header("동작 정책")]
         [Tooltip("승/패 시 Time.timeScale 을 0 으로 만들어 씬 전체를 멈춘다. 끄면 UI 만 뜨고 씬은 계속 진행.")]
@@ -99,8 +116,41 @@ namespace KRTD.UI
 
         private void HandleWin()
         {
+            ApplyStarRating(state);
             if (winPanel != null) winPanel.SetActive(true);
             FreezeIfNeeded();
+        }
+
+        /// <summary>
+        /// 남은 라이프 비율로 별 1~3개를 결정해 starIcons 에 반영.
+        /// MaxLife 가 0(설정 누락) 이거나 starIcons 가 3 개가 아니면 조용히 건너뛴다.
+        /// </summary>
+        private void ApplyStarRating(GameState gs)
+        {
+            if (starIcons == null || starIcons.Length != 3) return;
+            if (gs == null || gs.MaxLife <= 0) return;
+
+            float ratio = (float)gs.Life / gs.MaxLife;
+            int stars;
+            if (ratio >= threeStarRatio) stars = 3;
+            else if (ratio >= twoStarRatio) stars = 2;
+            else stars = 1;
+
+            for (int i = 0; i < starIcons.Length; i++)
+            {
+                var icon = starIcons[i];
+                if (icon == null) continue;
+                bool on = i < stars;
+                if (starOnSprite != null && starOffSprite != null)
+                {
+                    icon.sprite = on ? starOnSprite : starOffSprite;
+                    icon.color = Color.white;
+                }
+                else
+                {
+                    icon.color = on ? starOnColor : starOffColor;
+                }
+            }
         }
 
         private void HandleLose()
