@@ -56,6 +56,8 @@ MonoBehaviour:
   detectionRange: 2
   moveSpeed: 2
   rallyArriveRadius: 0.1
+  sideEngageOffset: 0.7
+  engageArriveRadius: 0.05
   visualRoot: {fileID: 0}
   animator: {fileID: 247398398460835846}
   runBool: isRunning
@@ -145,7 +147,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 6
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 7384290322352760091, guid: 639a4e0b939ac41caa76f0c03204883c, type: 3}
+  m_Sprite: {fileID: 7384290322352760091, guid: 63555c658eb534f48acbb1ba682fbec3, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
