@@ -32,6 +32,8 @@ namespace KRTD.Combat
         [SerializeField] private float minDamage = 1f;
         [SerializeField] private float respawnDelay = 5f;
         [SerializeField] private bool respawnAtLastRally = true;
+        [SerializeField] private float combatOutOfTime = 5f;
+        [SerializeField] private float hpRegenPerSec = 5f;
 
         [Header("랠리 / 이동")]
         [Tooltip("랠리 위치에 이만큼 가까워지면 도착으로 판정.")]
@@ -66,6 +68,10 @@ namespace KRTD.Combat
         private Vector3 rallyPoint;
         private Vector3 spawnPoint;
         private bool hasArrivedAtRally;
+
+        // 마지막 전투 시각 — HP 자연 회복 타이머에 사용. 공격/피격/타겟 잡힘 시 갱신.
+        // Time.time - lastCombatTime >= combatOutOfTime 이면 비전투 상태로 간주.
+        private float lastCombatTime;
 
         // 1:1 페어 락 — 적이 이 영웅을 currentEngageTarget 으로 잡고 있을 때 그 적 인스턴스.
         // null 이면 자유 상태(다른 적이 후보로 잡을 수 있음). Enemy.SetCurrentEngageTarget 가 자동 갱신.
@@ -212,14 +218,38 @@ namespace KRTD.Combat
             {
                 UpdateFacing(currentTarget.Position.x - transform.position.x);
                 nextIsAttacking = true;
+                lastCombatTime = Time.time; // 타겟 잡고 있는 동안엔 전투 중
                 if (Time.time >= nextAttackTime)
                 {
                     Attack(currentTarget);
                     nextAttackTime = Time.time + ResolveAttackInterval();
                 }
             }
+            else
+            {
+                // 3. 비전투 — combatOutOfTime 지났으면 HP 자연 회복.
+                TickHpRegen();
+            }
 
             SyncAnimator(nextIsRunning, nextIsAttacking);
+        }
+
+        /// <summary>
+        /// 마지막 전투 후 combatOutOfTime 초가 지났으면 hpRegenPerSec * deltaTime 만큼 HP 회복.
+        /// 최대 체력 이상은 회복하지 않는다.
+        /// </summary>
+        private void TickHpRegen()
+        {
+            float regen = ResolveHpRegenPerSec();
+            float coolout = ResolveCombatOutOfTime();
+            if (regen <= 0f) return;
+
+            float max = ResolveMaxHp();
+            if (currentHp >= max) return;
+
+            if (Time.time - lastCombatTime < coolout) return;
+
+            currentHp = Mathf.Min(max, currentHp + regen * Time.deltaTime);
         }
 
         // --- 적 탐지/공격 -------------------------------------------------------
@@ -266,6 +296,7 @@ namespace KRTD.Combat
             float defense = type == AttackType.Magic ? ResolveMagicDefense() : ResolvePhysicalDefense();
             float effective = Mathf.Max(ResolveMinDamage(), amount - defense);
             currentHp -= effective;
+            lastCombatTime = Time.time; // 피격도 전투 — 회복 타이머 리셋
             if (currentHp <= 0f)
             {
                 currentHp = 0f;
@@ -371,5 +402,7 @@ namespace KRTD.Combat
         private float ResolveMinDamage() => data != null ? data.minDamage : minDamage;
         private float ResolveRespawnDelay() => data != null ? data.respawnDelay : respawnDelay;
         private bool ResolveRespawnAtLastRally() => data != null ? data.respawnAtLastRally : respawnAtLastRally;
+        private float ResolveCombatOutOfTime() => data != null ? data.combatOutOfTime : combatOutOfTime;
+        private float ResolveHpRegenPerSec() => data != null ? data.hpRegenPerSec : hpRegenPerSec;
     }
 }

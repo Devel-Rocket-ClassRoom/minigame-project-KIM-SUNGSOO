@@ -44,5 +44,14 @@ namespace KRTD.Combat
 
         [Tooltip("부활 위치 — true 면 마지막 랠리, false 면 HeroSpawner 의 시작 위치.")]
         public bool respawnAtLastRally = true;
+
+        [Header("HP 자연 회복 (비전투 시)")]
+        [Tooltip("마지막 전투 후 이 시간이 지나면 HP 자연 회복 시작. 0 이면 회복 비활성.")]
+        [Min(0f)]
+        public float combatOutOfTime = 5f;
+
+        [Tooltip("비전투 시 초당 회복량.")]
+        [Min(0f)]
+        public float hpRegenPerSec = 5f;
     }
 }
