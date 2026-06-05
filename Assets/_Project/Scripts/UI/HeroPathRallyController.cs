@@ -98,13 +98,16 @@ namespace KRTD.UI
             mouseWorld.z = 0f;
 
             // 모든 EnemyPath 를 훑어 가장 가까운 경로 위 점을 찾는다.
+            // 계산은 XY 평면(2D) 만 — waypoint Transform 의 z 가 0 이 아니어도 거리 부풀림 없음.
             ComputeNearestPathPoint(mouseWorld, out snappedPos, out float dist);
             snappedValid = dist <= snapThreshold;
+            snappedPos.z = 0f; // 영웅이 z=0 평면에서 움직이도록 강제
 
-            // 마커는 유효하면 스냅 점에, 무효면 마우스 위치(빨강) 에 표시.
+            // 마커는 항상 마우스 위치 — 부드럽게 따라옴 (Barracks 랠리와 동일 UX).
+            // 유효/무효는 색깔로만 표시. 클릭 시 실제 rally 는 snappedPos 로 설정되므로 결과는 정확히 경로 위.
             if (markerInstance != null)
             {
-                markerInstance.transform.position = snappedValid ? snappedPos : mouseWorld;
+                markerInstance.transform.position = mouseWorld;
                 var c = snappedValid ? validColor : invalidColor;
                 markerInstance.startColor = c;
                 markerInstance.endColor = c;
@@ -130,13 +133,16 @@ namespace KRTD.UI
 
         /// <summary>
         /// 씬의 모든 EnemyPath 를 훑어 mouseWorld 에 가장 가까운 segment 위 점을 찾는다.
-        /// 결과: nearestPoint = 그 점의 월드 좌표, distance = mouseWorld 와의 거리.
+        /// 계산은 XY 평면(2D) 만 — waypoint Transform 의 z 값이 0 이 아니어도 거리에 z 가 섞이지 않는다.
+        /// 결과: nearestPoint = 그 점의 (x, y, 0) 월드 좌표, distance = 2D 거리.
         /// 경로가 하나도 없으면 nearestPoint = mouseWorld, distance = float.MaxValue.
         /// </summary>
         private static void ComputeNearestPathPoint(Vector3 mouseWorld, out Vector3 nearestPoint, out float distance)
         {
             nearestPoint = mouseWorld;
             distance = float.MaxValue;
+
+            Vector2 mouse2D = new Vector2(mouseWorld.x, mouseWorld.y);
 
             // NOTE: 매 프레임 FindObjectsByType 호출 — 경로 수가 적어(보통 4) 부담 적음.
             var paths = Object.FindObjectsByType<EnemyPath>(FindObjectsSortMode.None);
@@ -147,24 +153,27 @@ namespace KRTD.UI
                 {
                     Vector3 a = path.GetPoint(i);
                     Vector3 b = path.GetPoint(i + 1);
-                    Vector3 p = ClosestPointOnSegment(a, b, mouseWorld);
-                    float d = Vector3.Distance(p, mouseWorld);
+                    Vector2 a2 = new Vector2(a.x, a.y);
+                    Vector2 b2 = new Vector2(b.x, b.y);
+
+                    Vector2 closest = ClosestPointOnSegment2D(a2, b2, mouse2D);
+                    float d = Vector2.Distance(closest, mouse2D);
                     if (d < distance)
                     {
                         distance = d;
-                        nearestPoint = p;
+                        nearestPoint = new Vector3(closest.x, closest.y, 0f);
                     }
                 }
             }
         }
 
-        /// <summary>선분 ab 위에서 점 p 에 가장 가까운 점을 t∈[0,1] 클램프로 구한다.</summary>
-        private static Vector3 ClosestPointOnSegment(Vector3 a, Vector3 b, Vector3 p)
+        /// <summary>선분 ab(2D) 위에서 점 p 에 가장 가까운 점을 t∈[0,1] 클램프로 구한다.</summary>
+        private static Vector2 ClosestPointOnSegment2D(Vector2 a, Vector2 b, Vector2 p)
         {
-            Vector3 ab = b - a;
+            Vector2 ab = b - a;
             float lenSq = ab.sqrMagnitude;
             if (lenSq < 1e-6f) return a; // 사실상 점
-            float t = Vector3.Dot(p - a, ab) / lenSq;
+            float t = Vector2.Dot(p - a, ab) / lenSq;
             t = Mathf.Clamp01(t);
             return a + ab * t;
         }

@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
+using KRTD.UI;
 
 namespace KRTD.Combat
 {
@@ -13,7 +15,7 @@ namespace KRTD.Combat
     ///   - 도착 후엔 가장 가까운 적을 currentTarget 으로 잡고 attackInterval 마다 공격
     ///   - HP 0 → Die → respawnDelay 후 Respawn (인스턴스 재사용)
     /// </summary>
-    public class Hero : MonoBehaviour, IDamageable
+    public class Hero : MonoBehaviour, IEnemyEngageable
     {
         [Header("데이터")]
         [SerializeField] private HeroData data;
@@ -38,6 +40,9 @@ namespace KRTD.Combat
         [Header("좌우 방향 반전")]
         [Tooltip("진행/타겟 방향에 따라 좌우 반전할 시각 Transform. 비워두면 자기 자신.")]
         [SerializeField] private Transform visualRoot;
+        [Tooltip("프리팹의 기본 스프라이트가 오른쪽(+X) 을 향한다고 가정하면 true. " +
+            "왼쪽을 향한 에셋(예: sword_man) 이면 false 로 두면 좌우 반전이 자연스럽게 맞춰진다.")]
+        [SerializeField] private bool spriteFacesRight = true;
 
         [Header("애니메이션 (선택)")]
         [SerializeField] private Animator animator;
@@ -60,12 +65,32 @@ namespace KRTD.Combat
         private Vector3 spawnPoint;
         private bool hasArrivedAtRally;
 
+        // 1:1 페어 락 — 적이 이 영웅을 currentEngageTarget 으로 잡고 있을 때 그 적 인스턴스.
+        // null 이면 자유 상태(다른 적이 후보로 잡을 수 있음). Enemy.SetCurrentEngageTarget 가 자동 갱신.
+        private Enemy targetedBy;
+
         // 씬에 단일 인스턴스 가정 — UI/컨트롤러가 정적 슬롯으로 접근.
         public static Hero Instance { get; private set; }
 
         public bool IsDead => isDead;
         public Vector3 Position => transform.position;
         public Vector3 RallyPoint => rallyPoint;
+
+        // --- IEnemyEngageable 구현 ---
+        /// <summary>영웅은 \"배치\" 개념이 없으므로 항상 false. 적 검색에서 항상 후보로 고려된다.</summary>
+        public bool IsDeploying => false;
+
+        /// <summary>이 영웅을 노리고 있는 적(있다면). 1:1 페어 정책 — 다른 적은 후보로 잡지 않는다.</summary>
+        public Enemy TargetedBy => targetedBy;
+
+        /// <summary>Enemy.SetCurrentEngageTarget 가 자동으로 갱신 — 외부 직접 호출 비권장.</summary>
+        public void SetTargetedBy(Enemy e) { targetedBy = e; }
+
+        /// <summary>영웅은 탱커 컨셉 — 여러 적이 동시에 달려들 수 있다(페어 lock 우회).</summary>
+        public bool AcceptsMultipleAttackers => true;
+
+        /// <summary>영웅은 랠리에 고정 — 적이 다가오지 않는다. 적이 직접 접근해야 함.</summary>
+        public bool ApproachesEnemies => false;
 
         public float HpRatio
         {
@@ -104,6 +129,36 @@ namespace KRTD.Combat
             if (Instance == this) Instance = null;
         }
 
+        /// <summary>
+        /// 월드에서 영웅(Collider2D) 을 클릭하면 HeroPathRallyController 의 조준 모드를 시작한다.
+        /// 호출 조건:
+        ///   - 영웅이 살아있어야 함
+        ///   - 마우스가 UI 위가 아닐 것 (Canvas Button 등의 클릭이 흘러들어오는 것 방지)
+        ///   - Collider2D 가 프리팹에 부착돼 있어야 OnMouseDown 이 발화함
+        ///
+        /// 토글 정책 (Portrait 와 비대칭 — 의도적):
+        ///   - 조준 모드가 꺼져 있을 때 영웅 클릭 → 조준 시작
+        ///   - 조준 모드가 켜져 있을 때 영웅 클릭 → 아무 일도 안 함. 그대로 컨트롤러의 Update 가
+        ///     같은 프레임 클릭을 받아 영웅 위치 근처(경로 위) 에 랠리를 설정한다.
+        ///   - 취소는 ESC / 우클릭 / Portrait 클릭으로.
+        /// 이렇게 안 하면 영웅이 경로 위에 서 있을 때, 그 경로를 클릭하려는 시도가 영웅 콜라이더에
+        /// 먼저 닿아 OnMouseDown 이 조준을 꺼버리고 랠리 설정이 되지 않는다.
+        /// </summary>
+        private void OnMouseDown()
+        {
+            if (isDead) return;
+            // UI 위 클릭(Portrait Button 등) 은 무시 — UI 가 자체 핸들러로 이미 토글했을 것.
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
+
+            var controller = HeroPathRallyController.Instance;
+            if (controller == null) return;
+
+            // 조준 중이면 클릭을 컨트롤러 Update 가 받아 처리하도록 흘려보낸다.
+            if (controller.IsTargeting) return;
+
+            controller.BeginTargeting(this);
+        }
+
         /// <summary>HeroPathRallyController 가 호출. 새 랠리 위치를 지정 — 영웅은 걸어서 이동한다.</summary>
         public void SetRally(Vector3 worldPos)
         {
@@ -113,7 +168,6 @@ namespace KRTD.Combat
             hasArrivedAtRally =
                 (rallyPoint - transform.position).sqrMagnitude
                 <= rallyArriveRadius * rallyArriveRadius;
-
             // 이동 모드 진입 시 교전 컨텍스트는 끊는다 — 새 위치에 도착 후 다시 잡는다.
             currentTarget = null;
         }
@@ -225,6 +279,9 @@ namespace KRTD.Combat
             currentTarget = null;
             respawnAt = Time.time + ResolveRespawnDelay();
 
+            // 나를 노리던 적도 자기 currentEngageTarget 을 즉시 풀어 다른 후보를 잡을 수 있게.
+            if (targetedBy != null) targetedBy.SetCurrentEngageTarget(null);
+
             if (animator != null && !string.IsNullOrEmpty(deathTrigger))
                 animator.SetTrigger(deathTrigger);
 
@@ -272,7 +329,10 @@ namespace KRTD.Combat
             Transform t = visualRoot != null ? visualRoot : transform;
             Vector3 scale = t.localScale;
             float abs = Mathf.Abs(scale.x);
-            scale.x = dirX > 0 ? abs : -abs;
+            // 기본 스프라이트가 오른쪽 향함 → 오른쪽 진행 시 양의 X. 왼쪽 향한 스프라이트면 부호 반대.
+            bool facingRight = dirX > 0f;
+            bool wantPositive = spriteFacesRight ? facingRight : !facingRight;
+            scale.x = wantPositive ? abs : -abs;
             t.localScale = scale;
         }
 

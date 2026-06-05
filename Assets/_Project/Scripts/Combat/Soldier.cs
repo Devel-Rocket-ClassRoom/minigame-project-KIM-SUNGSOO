@@ -13,7 +13,7 @@ namespace KRTD.Combat
     ///
     /// BarracksController 가 인스턴스화 → OnDeath 이벤트로 부활 신호를 받는다.
     /// </summary>
-    public class Soldier : MonoBehaviour, IDamageable
+    public class Soldier : MonoBehaviour, IEnemyEngageable
     {
         [Header("스탯")]
         [SerializeField] private float maxHp = 8f;
@@ -81,7 +81,7 @@ namespace KRTD.Combat
         // 멀리 옮겨지면 다시 false 로 돌아간다 (새 랠리로 걸어가는 동안 무방비 방지).
         private bool hasArrivedAtRally;
 
-        // 1:1 페어 락. 이 보병을 currentSoldierTarget 으로 잡고 있는 적이 있다면 그 인스턴스.
+        // 1:1 페어 락. 이 보병을 currentEngageTarget 으로 잡고 있는 적이 있다면 그 인스턴스.
         // null 이면 자유 상태 — 다른 적이 후보로 잡을 수 있다.
         // Enemy 측에서 SetTargetedBy 로 설정/해제한다.
         private Enemy targetedBy;
@@ -109,10 +109,16 @@ namespace KRTD.Combat
         public Enemy TargetedBy => targetedBy;
 
         /// <summary>
-        /// Enemy 측에서 \"이 보병을 내 currentSoldierTarget 으로 잡았다 / 풀었다\" 알릴 때 호출.
-        /// null 을 넣으면 페어 해제. Enemy.SetCurrentSoldierTarget 이 자동으로 갱신한다 — 외부 직접 호출 비권장.
+        /// Enemy 측에서 \"이 보병을 내 currentEngageTarget 으로 잡았다 / 풀었다\" 알릴 때 호출.
+        /// null 을 넣으면 페어 해제. Enemy.SetCurrentEngageTarget 이 자동으로 갱신한다 — 외부 직접 호출 비권장.
         /// </summary>
         public void SetTargetedBy(Enemy e) { targetedBy = e; }
+
+        /// <summary>보병은 1:1 페어 lock — 한 명의 보병에 한 적만 붙는다.</summary>
+        public bool AcceptsMultipleAttackers => false;
+
+        /// <summary>보병은 sideEngage 슬라이드로 적에게 다가간다 — 적은 멈춰서 기다린다.</summary>
+        public bool ApproachesEnemies => true;
 
         /// <summary>
         /// 죽음 순간 한 번 호출. BarracksController 가 구독해서 부활 카운트다운 시작.
@@ -167,7 +173,7 @@ namespace KRTD.Combat
             bool nextIsRunning = false;
 
             // 0. 배치 중(랠리 첫 도달 전): 적과의 상호작용 없이 랠리로만 이동.
-            //    Enemy.FindNearestSoldierInDetection 도 IsDeploying 인 보병을 건너뛰므로
+            //    Enemy.FindNearestEngageableInDetection 도 IsDeploying 인 보병을 건너뛰므로
             //    이 구간 동안 보병은 적에게도 보이지 않는다.
             if (!hasArrivedAtRally)
             {
@@ -350,8 +356,8 @@ namespace KRTD.Combat
             isDead = true;
             // 1:1 페어 lock 해제 — 내가 노리던 적의 TargetedBy 풀기.
             SetCurrentTarget(null);
-            // 나를 노리던 적도 자기 currentSoldierTarget 을 즉시 풀어 다른 보병을 잡을 수 있게.
-            if (targetedBy != null) targetedBy.SetCurrentSoldierTarget(null);
+            // 나를 노리던 적도 자기 currentEngageTarget 을 즉시 풀어 다른 후보를 잡을 수 있게.
+            if (targetedBy != null) targetedBy.SetCurrentEngageTarget(null);
 
             if (animator != null && !string.IsNullOrEmpty(deathTrigger))
                 animator.SetTrigger(deathTrigger);
