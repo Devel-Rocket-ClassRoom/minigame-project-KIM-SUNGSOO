@@ -310,6 +310,13 @@ namespace KRTD.Combat
                 Transform t = visualRoot != null ? visualRoot : transform;
                 t.gameObject.SetActive(true);
             }
+
+            // Animator 가 Die 상태에서 멈춰있으면 Die 클립의 마지막 프레임이 그대로 보임.
+            // 강제로 Idle 상태로 되돌려 정상 비주얼 복원. (Die 에서 나가는 전환이 없는 경우 대응)
+            if (animator != null && animator.runtimeAnimatorController != null)
+            {
+                animator.Play("Idle", 0, 0f);
+            }
         }
 
         // --- 이동/시각 ----------------------------------------------------------
