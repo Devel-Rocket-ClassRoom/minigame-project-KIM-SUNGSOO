@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Combat.HeroData
   heroName: Hero
   heroPrefab: {fileID: 1290715225530138, guid: 12409f2d8ab15084882622cd99ae0726, type: 3}
-  maxHp: 40
-  damage: 20
+  maxHp: 200
+  damage: 10
   attackRange: 1.2
   attackInterval: 1
   moveSpeed: 2.5

@@ -15,7 +15,7 @@ MonoBehaviour:
   enemyName: Boss
   enemyPrefab: {fileID: 8094173641835900607, guid: c454b880b1a2ec847aab8aaf7fd176e5, type: 3}
   isFlying: 0
-  maxHp: 800
+  maxHp: 2000
   moveSpeed: 0.5
   goldReward: 100
   lifeDamage: 20
