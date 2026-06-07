@@ -40,10 +40,14 @@ namespace KRTD.EditorTools
         private const string FrostMageDataPath     = "Assets/TowerData/MageTower_FrostMage.asset";
 
         // 분기 튜닝 값 — 추후 EditorWindow 로 빼서 조절 가능하게 만들 수 있음.
-        private const float FireballSplashRadius   = 1.5f;
+        private const float FireballSplashRadius   = 2.5f;   // 광역 반경 (커진 화염 크기에 맞춰 확대)
+        private const float FireballVisualScale    = 1.8f;   // Fireball prefab 의 루트 transform.localScale — 시각적으로 큰 화염
+        private const float FireballHitRadius      = 0.4f;   // 명중 판정 반경 — 큰 화염은 좀 더 일찍 터지는 게 자연스러움
         private const float FireballDamageMul      = 0.8f;   // 광역이라 단발 데미지 약간 낮춤
         private const float FrostboltSlowAmount    = 0.5f;   // 50% 감속
         private const float FrostboltSlowDuration  = 2f;     // 2초 지속
+        private const float FrostboltVisualScale   = 1f;     // Frostbolt 는 기본 크기
+        private const float FrostboltHitRadius     = 0.2f;   // 기본값
 
         private const int PyromancerCost = 280;
         private const int FrostMageCost  = 280;
@@ -90,9 +94,11 @@ namespace KRTD.EditorTools
 
                 // 1) Magic variant 두 개
                 var fireballPrefab  = EnsureMagicVariant(baseMagic, FireballPrefabPath,
-                    splashRadius: FireballSplashRadius, slowAmount: 0f, slowDuration: 0f);
+                    splashRadius: FireballSplashRadius, slowAmount: 0f, slowDuration: 0f,
+                    visualScale: FireballVisualScale, hitRadius: FireballHitRadius);
                 var frostboltPrefab = EnsureMagicVariant(baseMagic, FrostboltPrefabPath,
-                    splashRadius: 0f, slowAmount: FrostboltSlowAmount, slowDuration: FrostboltSlowDuration);
+                    splashRadius: 0f, slowAmount: FrostboltSlowAmount, slowDuration: FrostboltSlowDuration,
+                    visualScale: FrostboltVisualScale, hitRadius: FrostboltHitRadius);
 
                 // 2) MageTower variant 두 개 (magicPrefab 교체 + 일부 스탯 튜닝)
                 var pyromancerPrefab = EnsureTowerVariant(baseMageLv3, PyromancerPrefabPath,
@@ -128,29 +134,42 @@ namespace KRTD.EditorTools
 
         /// <summary>
         /// Magic variant prefab 을 보장한다. 없으면 베이스로 생성, 있으면 재사용 후 값만 갱신.
+        /// SaveAsPrefabAsset 의 반환값을 그대로 돌려준다 — StartAssetEditing 구간 안에서
+        /// LoadAssetAtPath 가 null 을 반환하는 케이스를 피하기 위함.
         /// </summary>
         private static GameObject EnsureMagicVariant(GameObject baseMagic, string path,
-            float splashRadius, float slowAmount, float slowDuration)
+            float splashRadius, float slowAmount, float slowDuration,
+            float visualScale, float hitRadius)
         {
             EnsurePrefabCloned(baseMagic, path);
 
             var contents = PrefabUtility.LoadPrefabContents(path);
+            GameObject saved;
             try
             {
                 var magic = contents.GetComponent<Magic>();
+                if (magic == null)
+                    throw new System.InvalidOperationException(
+                        "베이스 Magic prefab 에 Magic 컴포넌트가 없습니다: " + path);
                 var so = new SerializedObject(magic);
                 SetFloatIfExists(so, "splashRadius", splashRadius);
                 SetFloatIfExists(so, "slowAmount", slowAmount);
                 SetFloatIfExists(so, "slowDuration", slowDuration);
+                SetFloatIfExists(so, "hitRadius", hitRadius);
                 so.ApplyModifiedPropertiesWithoutUndo();
-                PrefabUtility.SaveAsPrefabAsset(contents, path);
+
+                // 시각 크기 — root transform.localScale 갱신 (자식 SpriteRenderer 까지 자동 확대).
+                contents.transform.localScale = Vector3.one * Mathf.Max(0.01f, visualScale);
+
+                saved = PrefabUtility.SaveAsPrefabAsset(contents, path);
             }
             finally
             {
                 PrefabUtility.UnloadPrefabContents(contents);
             }
 
-            return AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            // SaveAsPrefabAsset 이 null 반환한 적은 거의 없지만, 방어적으로 LoadAssetAtPath 폴백.
+            return saved != null ? saved : AssetDatabase.LoadAssetAtPath<GameObject>(path);
         }
 
         /// <summary>
@@ -159,30 +178,43 @@ namespace KRTD.EditorTools
         private static GameObject EnsureTowerVariant(GameObject baseTower, string path,
             Magic magicPrefab, float damageMultiplier)
         {
+            if (magicPrefab == null)
+                throw new System.ArgumentNullException(nameof(magicPrefab),
+                    "MageTower variant 생성에 magicPrefab 이 null — Magic variant 생성이 실패했을 가능성: " + path);
+
             // damage 배율을 적용하려면 베이스 값을 알아야 한다 — 재실행 시 누적 곱셈을 피하려고
             // 항상 베이스 prefab 의 damage 를 기준으로 새로 계산한다.
-            float baseDamage = baseTower.GetComponent<MageTower>() != null
-                ? new SerializedObject(baseTower.GetComponent<MageTower>()).FindProperty("damage").floatValue
-                : 0f;
+            var baseTowerComp = baseTower.GetComponent<MageTower>();
+            float baseDamage = 0f;
+            if (baseTowerComp != null)
+            {
+                var baseSo = new SerializedObject(baseTowerComp);
+                var dmgProp = baseSo.FindProperty("damage");
+                if (dmgProp != null) baseDamage = dmgProp.floatValue;
+            }
 
             EnsurePrefabCloned(baseTower, path);
 
             var contents = PrefabUtility.LoadPrefabContents(path);
+            GameObject saved;
             try
             {
                 var tower = contents.GetComponent<MageTower>();
+                if (tower == null)
+                    throw new System.InvalidOperationException(
+                        "변형된 prefab 에 MageTower 컴포넌트가 없습니다: " + path);
                 var so = new SerializedObject(tower);
                 so.FindProperty("magicPrefab").objectReferenceValue = magicPrefab;
                 if (baseDamage > 0f) so.FindProperty("damage").floatValue = baseDamage * damageMultiplier;
                 so.ApplyModifiedPropertiesWithoutUndo();
-                PrefabUtility.SaveAsPrefabAsset(contents, path);
+                saved = PrefabUtility.SaveAsPrefabAsset(contents, path);
             }
             finally
             {
                 PrefabUtility.UnloadPrefabContents(contents);
             }
 
-            return AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            return saved != null ? saved : AssetDatabase.LoadAssetAtPath<GameObject>(path);
         }
 
         /// <summary>
