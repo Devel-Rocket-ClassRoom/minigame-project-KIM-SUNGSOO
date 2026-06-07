@@ -10,13 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9c0aaa84acfac3e42aab93fc439a5119, type: 3}
-  m_Name: MageTower_Lv3
+  m_Name: MageTower_Pyromancer
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Map.BuildingData
-  buildingName: Building
-  icon: {fileID: 4723107735738678597, guid: 088c72b8c44664ef7ba139bf42990072, type: 3}
-  buildingPrefab: {fileID: 4731829056103928471, guid: 7813c8635ae8e544891ac3cf5ffaa857, type: 3}
-  cost: 220
+  buildingName: MageTower_Pyromancer
+  icon: {fileID: 0}
+  buildingPrefab: {fileID: 8225244607664509231, guid: 784639047183ea845ab1801beb755608, type: 3}
+  cost: 280
   nextUpgrade: {fileID: 0}
-  nextBranches:
-  - {fileID: 11400000, guid: f5d5a95642dd5cd47b0569cb526e5590, type: 2}
-  - {fileID: 11400000, guid: a6ea88df9e64af444a3f990a425fd631, type: 2}
+  nextBranches: []

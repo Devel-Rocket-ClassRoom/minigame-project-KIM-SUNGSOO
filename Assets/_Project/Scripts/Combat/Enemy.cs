@@ -108,6 +108,14 @@ namespace KRTD.Combat
         private float? overridePhysicalDefense;
         private float? overrideMagicDefense;
 
+        // --- 둔화 모디파이어 (Frost Mage 등) ---
+        // 1.0 = 둔화 없음, 0.5 = 절반 속도, 0 = 정지.
+        // 보스 페이즈 overrideMoveSpeed 와 독립적으로 곱셈 합성된다.
+        // 정책: "더 강한 둔화로 덮어쓰기" — 약한 둔화는 기존 더 강한 것을 못 깬다.
+        //        만료 후엔 다음 둔화로 다시 시작.
+        private float slowMultiplier = 1f;
+        private float slowEndTime;
+
         public bool IsDead => currentHp <= 0f;
         public Vector3 Position => transform.position;
 
@@ -574,7 +582,32 @@ namespace KRTD.Combat
         }
 
         private float ResolveMaxHp() => (data != null ? data.maxHp : maxHp) * hpMultiplier;
-        private float ResolveMoveSpeed() => overrideMoveSpeed ?? (data != null ? data.moveSpeed : moveSpeed);
+        private float ResolveMoveSpeed()
+        {
+            // 만료된 둔화는 자동 복구.
+            if (slowMultiplier < 1f && Time.time >= slowEndTime) slowMultiplier = 1f;
+            float baseSpeed = overrideMoveSpeed ?? (data != null ? data.moveSpeed : moveSpeed);
+            return baseSpeed * slowMultiplier;
+        }
+
+        /// <summary>
+        /// 이동 속도 둔화 적용. multiplier 는 곱해질 배율 (0.5 = 절반 속도, 0 = 정지, 1 = 둔화 없음).
+        /// 정책: 더 강한 둔화(더 낮은 multiplier) 가 들어오면 덮어쓰고, 약한 둔화는 기존 유지.
+        ///       단, 기존 둔화가 만료된 상태라면 새 둔화로 시작.
+        /// 지속 시간은 더 긴 쪽으로 갱신.
+        /// </summary>
+        public void ApplySlow(float multiplier, float duration)
+        {
+            if (IsDead || reachedEnd || duration <= 0f) return;
+            multiplier = Mathf.Clamp01(multiplier);
+
+            bool expired = Time.time >= slowEndTime;
+            if (expired || multiplier < slowMultiplier)
+            {
+                slowMultiplier = multiplier;
+            }
+            slowEndTime = Mathf.Max(expired ? 0f : slowEndTime, Time.time + duration);
+        }
         private int ResolveGoldReward() => data != null ? data.goldReward : goldReward;
         private int ResolveLifeDamage() => data != null ? data.lifeDamage : lifeDamage;
         private float ResolveMinDamage() => data != null ? data.minDamage : minDamage;
