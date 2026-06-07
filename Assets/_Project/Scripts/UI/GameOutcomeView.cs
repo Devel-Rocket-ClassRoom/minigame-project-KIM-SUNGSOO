@@ -50,10 +50,10 @@ namespace KRTD.UI
         [SerializeField] private Color starOnColor = Color.white;
         [Tooltip("스프라이트가 비어있을 때 사용할 꺼진 별 색.")]
         [SerializeField] private Color starOffColor = new Color(0.25f, 0.25f, 0.25f, 1f);
-        [Tooltip("★★★ 임계값. 남은 라이프 비율이 이 값 이상이면 별 3개. 기본 1.0 = 피해 0.")]
-        [Range(0f, 1f)] [SerializeField] private float threeStarRatio = 1f;
-        [Tooltip("★★☆ 임계값. 남은 라이프 비율이 이 값 이상이면 별 2개. 그 미만(0 초과)은 별 1개.")]
-        [Range(0f, 1f)] [SerializeField] private float twoStarRatio = 0.5f;
+        [Tooltip("★★★ 임계값. 남은 라이프가 이 값 이상이면 별 3개. 기본 18 (시작 라이프 20 기준 거의 무피해).")]
+        [SerializeField] private int threeStarMinLife = 18;
+        [Tooltip("★★☆ 임계값. 남은 라이프가 이 값 이상이면 별 2개. 그 미만(1 이상)은 별 1개.")]
+        [SerializeField] private int twoStarMinLife = 7;
 
         [Header("동작 정책")]
         [Tooltip("승/패 시 Time.timeScale 을 0 으로 만들어 씬 전체를 멈춘다. 끄면 UI 만 뜨고 씬은 계속 진행.")]
@@ -122,19 +122,21 @@ namespace KRTD.UI
         }
 
         /// <summary>
-        /// 남은 라이프 비율로 별 1~3개를 결정해 starIcons 에 반영.
-        /// MaxLife 가 0(설정 누락) 이거나 starIcons 가 3 개가 아니면 조용히 건너뛴다.
+        /// 남은 라이프 절대값으로 별 0~3개를 결정해 starIcons 에 반영.
+        /// 기준: Life ≥ threeStarMinLife → 3, ≥ twoStarMinLife → 2, ≥ 1 → 1, 그 외 → 0.
+        /// starIcons 가 3 개가 아니면 조용히 건너뛴다.
         /// </summary>
         private void ApplyStarRating(GameState gs)
         {
             if (starIcons == null || starIcons.Length != 3) return;
-            if (gs == null || gs.MaxLife <= 0) return;
+            if (gs == null) return;
 
-            float ratio = (float)gs.Life / gs.MaxLife;
+            int life = gs.Life;
             int stars;
-            if (ratio >= threeStarRatio) stars = 3;
-            else if (ratio >= twoStarRatio) stars = 2;
-            else stars = 1;
+            if (life >= threeStarMinLife) stars = 3;
+            else if (life >= twoStarMinLife) stars = 2;
+            else if (life >= 1) stars = 1;
+            else stars = 0;
 
             for (int i = 0; i < starIcons.Length; i++)
             {

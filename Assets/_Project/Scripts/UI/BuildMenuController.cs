@@ -55,6 +55,8 @@ namespace KRTD.UI
         private const float UpgradeAngleDeg = 0f;
         private const float SellAngleDeg = 180f;
         private const float RallyAngleDeg = 90f;
+        // 분기 진화 시 두 슬롯의 좌우 오프셋 (12시 기준). 음수 = 11시 쪽(왼쪽), 양수 = 1시 쪽(오른쪽).
+        private const float BranchSpreadDeg = 30f;
 
         private void Awake()
         {
@@ -106,15 +108,23 @@ namespace KRTD.UI
             var entries = new List<RadialMenu.Entry>();
             var current = spot.CurrentBuilding;
 
-            // 업그레이드: 다음 단계가 정의된 경우만 노출 (12시 고정)
+            // 업그레이드: 다음 단계 후보를 순회. 분기(2개 이상)면 12시 좌/우로 펼치고,
+            // 단일이면 12시 한 자리. 각 후보의 자체 icon 이 있으면 사용, 없으면 공용 upgradeIcon.
             if (current != null && current.CanUpgrade)
             {
-                var next = current.nextUpgrade;
-                entries.Add(new RadialMenu.Entry(upgradeIcon, () =>
+                var nextOptions = new List<BuildingData>(current.NextOptions);
+                for (int i = 0; i < nextOptions.Count; i++)
                 {
-                    if (!TrySpendGold(next.cost, "업그레이드")) return;
-                    spot.ReplaceBuilding(next);
-                }, overrideAngleDeg: UpgradeAngleDeg, cost: next.cost));
+                    var nextCaptured = nextOptions[i];
+                    if (nextCaptured == null) continue;
+                    float angle = ResolveBranchAngle(i, nextOptions.Count);
+                    Sprite icon = nextCaptured.icon != null ? nextCaptured.icon : upgradeIcon;
+                    entries.Add(new RadialMenu.Entry(icon, () =>
+                    {
+                        if (!TrySpendGold(nextCaptured.cost, "업그레이드")) return;
+                        spot.ReplaceBuilding(nextCaptured);
+                    }, overrideAngleDeg: angle, cost: nextCaptured.cost));
+                }
             }
 
             // 판매 (6시 고정). 환급 예상액을 음수 cost 로 넘겨 라벨에 "+N" 으로 표시.
@@ -142,6 +152,23 @@ namespace KRTD.UI
             ShowTowerRange(spot);
 
             OpenMenuAt(spot, entries);
+        }
+
+        /// <summary>
+        /// 업그레이드 후보 N개를 12시 주변에 배치할 때 각 후보의 각도를 결정.
+        /// - 1개: 정확히 12시 (0°).
+        /// - 2개: 11시(-30°)와 1시(+30°) 좌우 분기.
+        /// - 3개 이상: 12시 ±60° 범위에서 균등 분배 (스폐셜 케이스 — 보통은 2개까지).
+        /// </summary>
+        private static float ResolveBranchAngle(int index, int total)
+        {
+            if (total <= 1) return UpgradeAngleDeg;
+            if (total == 2) return index == 0 ? -BranchSpreadDeg : +BranchSpreadDeg;
+            // 3개 이상: 12시(0°) 좌우 60° 범위에 균등 분배.
+            float spread = 60f;
+            float startDeg = -spread;
+            float stepDeg = (2f * spread) / (total - 1);
+            return startDeg + stepDeg * index;
         }
 
         /// <summary>
