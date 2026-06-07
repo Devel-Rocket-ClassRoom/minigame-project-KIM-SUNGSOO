@@ -20,6 +20,19 @@ namespace KRTD.Combat
         [Tooltip("비행 중 자체 회전 속도(도/초). 0이면 회전하지 않는다.")]
         [SerializeField] private float spinSpeed = 360f;
 
+        [Header("광역 (Pyromancer 분기)")]
+        [Tooltip("0 보다 크면 명중 지점 반경 내 모든 적에게 데미지(단일 타겟 모드 비활성). " +
+            "0 이면 단일 타겟 — 기존 동작.")]
+        [SerializeField] private float splashRadius = 0f;
+
+        [Header("둔화 (Frost Mage 분기)")]
+        [Tooltip("0 보다 크면 명중한 적에게 이동 속도 감소를 적용. " +
+            "1.0 = 정지, 0.5 = 절반 감속, 0 = 둔화 없음. " +
+            "광역(splashRadius > 0) 모드에서는 반경 내 모든 적에게 적용.")]
+        [Range(0f, 1f)] [SerializeField] private float slowAmount = 0f;
+        [Tooltip("둔화 지속 시간(초). slowAmount > 0 일 때만 의미 있음.")]
+        [SerializeField] private float slowDuration = 2f;
+
         private IDamageable target;
         private float damage;
         private AttackType attackType = AttackType.Magic;
@@ -56,7 +69,7 @@ namespace KRTD.Combat
 
             if (distSq <= hitRadius * hitRadius)
             {
-                target.TakeDamage(damage, attackType);
+                ApplyHit(target.Position);
                 Destroy(gameObject);
                 return;
             }
@@ -68,6 +81,41 @@ namespace KRTD.Combat
             {
                 transform.Rotate(0f, 0f, spinSpeed * Time.deltaTime);
             }
+        }
+
+        /// <summary>
+        /// 명중 처리 — 단일/광역 분기 + 둔화 적용.
+        /// splashRadius > 0 이면 hitCenter 반경 내 모든 적에게 데미지(+둔화),
+        /// 아니면 원래 타겟 1마리에게만.
+        /// </summary>
+        private void ApplyHit(Vector3 hitCenter)
+        {
+            if (splashRadius > 0f)
+            {
+                float radSq = splashRadius * splashRadius;
+                // NOTE: 매 명중마다 FindObjectsByType — 적 수 많아지면 EnemyManager 등록 방식으로 교체.
+                Enemy[] enemies = Object.FindObjectsByType<Enemy>(FindObjectsSortMode.None);
+                foreach (var e in enemies)
+                {
+                    if (e == null || e.IsDead) continue;
+                    if ((e.Position - hitCenter).sqrMagnitude > radSq) continue;
+                    e.TakeDamage(damage, attackType);
+                    TryApplySlow(e);
+                }
+                return;
+            }
+
+            // 단일 타겟 — 기존 동작.
+            target.TakeDamage(damage, attackType);
+            if (target is Enemy single) TryApplySlow(single);
+        }
+
+        private void TryApplySlow(Enemy enemy)
+        {
+            if (slowAmount <= 0f || slowDuration <= 0f) return;
+            // slowAmount 1.0 = 정지 → multiplier 0. slowAmount 0.5 = 절반 감속 → multiplier 0.5.
+            float multiplier = Mathf.Clamp01(1f - slowAmount);
+            enemy.ApplySlow(multiplier, slowDuration);
         }
     }
 }
