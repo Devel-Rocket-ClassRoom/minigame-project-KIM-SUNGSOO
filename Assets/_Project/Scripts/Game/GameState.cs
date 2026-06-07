@@ -30,6 +30,8 @@ namespace KRTD.Game
         public int Gold { get; private set; }
         public int CurrentWave { get; private set; }
         public int TotalWave => totalWave;
+        /// <summary>이번 스테이지의 시작(최대) 라이프. 결과 화면 성급 계산 등 비율이 필요한 곳에서 사용.</summary>
+        public int MaxLife => startingLife;
 
         /// <summary>life ≤ 0 으로 패배가 확정된 상태.</summary>
         public bool IsGameOver { get; private set; }
