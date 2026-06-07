@@ -112,3 +112,11 @@ Assets/Scenes/TestScene-ymj.unity
 Assets/Scenes/TestScene-ymj.unity.meta
 Assets/TestPrefabs-ymj/
 Assets/TestPrefabs-ymj.meta
+
+# Unity 가 비정상 종료 시 만드는 복구 폴더 — 절대 커밋 X.
+Assets/_Recovery/
+Assets/_Recovery.meta
+
+# IL2CPP / Burst 디버그 정보 (이름 그대로 "DoNotShip") — 빌드 출력물.
+*_BurstDebugInformation_DoNotShip/
+*_BackUpThisFolder_ButDontShipItWithYourGame/
