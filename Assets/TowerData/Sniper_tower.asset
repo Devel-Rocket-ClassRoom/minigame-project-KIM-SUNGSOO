@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Map.BuildingData
   buildingName: Building
   icon: {fileID: 0}
+  upgradeSlotIcon: {fileID: 7257567913506708742, guid: 277a50fd24135436398811e3293b2aa2, type: 3}
   buildingPrefab: {fileID: 5930100000000000001, guid: 2428a7cf69f33d849a7f7da41533bcba, type: 3}
   cost: 230
   nextUpgrade: {fileID: 0}

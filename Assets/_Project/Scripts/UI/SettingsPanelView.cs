@@ -1,14 +1,13 @@
 using UnityEngine;
 using UnityEngine.UI;
+using KRTD.Audio;
 
 namespace KRTD.UI
 {
     /// <summary>
     /// 설정 모달 패널. BGM/SFX 볼륨 슬라이더와 닫기 버튼을 다룬다.
-    /// 값은 PlayerPrefs 에 즉시 저장 (bgmVolume / sfxVolume, 둘 다 0~1 float).
-    ///
-    /// 본 이슈(#55) 범위: PlayerPrefs 저장까지만. AudioMixer 적용은 후속 이슈에서.
-    /// (저장된 값은 후속 작업에서 AudioMixer.SetFloat("BGM", Linear2dB(v)) 패턴으로 읽으면 됨.)
+    /// 값은 PlayerPrefs 에 즉시 저장 (bgmVolume / sfxVolume, 둘 다 0~1 float)
+    /// 되며, 동시에 <see cref="AudioManager"/> 에 즉시 반영되어 재생 중인 BGM/SFX 볼륨이 실시간 변경된다.
     /// </summary>
     public class SettingsPanelView : MonoBehaviour
     {
@@ -51,11 +50,15 @@ namespace KRTD.UI
         private void HandleBgmChanged(float value)
         {
             PlayerPrefs.SetFloat(BgmVolumeKey, value);
+            var am = AudioManager.Instance;
+            if (am != null) am.SetBgmVolume(value);
         }
 
         private void HandleSfxChanged(float value)
         {
             PlayerPrefs.SetFloat(SfxVolumeKey, value);
+            var am = AudioManager.Instance;
+            if (am != null) am.SetSfxVolume(value);
         }
 
         private void HandleClose()
