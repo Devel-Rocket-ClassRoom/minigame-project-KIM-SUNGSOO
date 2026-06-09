@@ -67,7 +67,11 @@ namespace KRTD.Combat
             Vector3 toTarget = target.Position - transform.position;
             float distSq = toTarget.sqrMagnitude;
 
-            if (distSq <= hitRadius * hitRadius)
+            // 명중 판정 — Arrow.cs 와 동일한 이유로 step-aware 처리.
+            // 저프레임(모바일 30fps)에서 한 프레임 이동량이 hitRadius 보다 클 때
+            // 적을 건너뛰어 진동하는 "잔존" 현상 방지.
+            float step = speed * Time.deltaTime;
+            if (distSq <= hitRadius * hitRadius || toTarget.magnitude <= step)
             {
                 ApplyHit(target.Position);
                 Destroy(gameObject);
@@ -75,7 +79,7 @@ namespace KRTD.Combat
             }
 
             Vector3 dir = toTarget.normalized;
-            transform.position += dir * speed * Time.deltaTime;
+            transform.position += dir * step;
 
             if (spinSpeed != 0f)
             {

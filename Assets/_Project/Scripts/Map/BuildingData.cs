@@ -17,6 +17,12 @@ namespace KRTD.Map
         [Tooltip("건설 메뉴(UI)용 작은 아이콘")]
         public Sprite icon;
 
+        [Tooltip("이 건물이 '업그레이드/진화 슬롯' 으로 표시될 때 쓸 아이콘. " +
+            "비어있으면 위의 icon 을 그대로 사용. " +
+            "분기 진화에서 각 가지(예: Pyromancer / Frost Mage) 를 시각적으로 구분하고 싶을 때 " +
+            "여기에 분기-전용(화염/얼음 테두리 등) 아이콘을 박아 두면 관리 메뉴에서 한눈에 어떤 업글인지 보인다.")]
+        public Sprite upgradeSlotIcon;
+
         [Header("실제 건물")]
         [Tooltip("BuildSpot에 설치될 때 인스턴스화되는 프리팹. 시각/애니메이션/공격 로직 모두 이 안에 둔다.")]
         public GameObject buildingPrefab;

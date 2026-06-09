@@ -77,7 +77,14 @@ namespace KRTD.Combat
             Vector3 toTarget = target.Position - transform.position;
             float distSq = toTarget.sqrMagnitude;
 
-            if (distSq <= hitRadius * hitRadius)
+            // 명중 판정은 두 가지 조건 중 하나라도 만족하면 hit.
+            //   1) 이미 hitRadius 안 (기존 동작)
+            //   2) 이번 프레임에 이동할 거리(step)가 남은 거리 이상 — 즉, 이 프레임에 적을 "건너뛸" 상황.
+            //      모바일 저프레임(예: Android 기본 30fps)에서 step 이 hitRadius 보다 커져
+            //      적을 한 프레임에 통과해버리는 오버슈트 → 적 주위를 진동하다 lifeTime 끝에 사라지는
+            //      "잔존 화살" 버그를 막는다.
+            float step = speed * Time.deltaTime;
+            if (distSq <= hitRadius * hitRadius || toTarget.magnitude <= step)
             {
                 target.TakeDamage(damage, attackType);
                 Destroy(gameObject);
@@ -85,7 +92,7 @@ namespace KRTD.Combat
             }
 
             Vector3 dir = toTarget.normalized;
-            transform.position += dir * speed * Time.deltaTime;
+            transform.position += dir * step;
 
             // 스프라이트가 오른쪽(+X)을 향한 상태 기준으로 회전 적용
             float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;

@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Map.BuildingData
   buildingName: MageTower_FrostMage
   icon: {fileID: 0}
+  upgradeSlotIcon: {fileID: 4723107735738678597, guid: 7ba4178767e424c47b91888898a1fdc4, type: 3}
   buildingPrefab: {fileID: 1387299770988716388, guid: 2056f203227734b4d97f996f365a34b4, type: 3}
   cost: 280
   nextUpgrade: {fileID: 0}

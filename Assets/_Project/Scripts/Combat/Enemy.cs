@@ -72,6 +72,12 @@ namespace KRTD.Combat
         [Tooltip("페이즈 전환 플래시 지속 시간(초). 0 이하이면 플래시 생략.")]
         [SerializeField] private float phaseFlashDuration = 0.15f;
 
+        [Header("둔화 시각 피드백 (Frost Mage 등에 슬로우 맞았을 때)")]
+        [Tooltip("둔화가 활성화된 동안 자식 SpriteRenderer 들의 color 를 이 색으로 덮는다. " +
+            "기본 (0.6, 0.8, 1.0) = 살짝 푸르스름한 얼음 톤. " +
+            "흰색(1,1,1,1) 로 두면 시각 효과 사실상 끔.")]
+        [SerializeField] private Color slowTint = new Color(0.6f, 0.8f, 1f, 1f);
+
         private float currentHp;
         private EnemyPath path;
         private int nextWaypointIndex;
@@ -115,6 +121,9 @@ namespace KRTD.Combat
         //        만료 후엔 다음 둔화로 다시 시작.
         private float slowMultiplier = 1f;
         private float slowEndTime;
+        // 슬로우 틴트 코루틴 핸들 — 한 번에 하나만 돈다.
+        // ApplySlow 재호출 시 slowEndTime 만 늘리고 코루틴은 그대로 둔다.
+        private Coroutine slowTintCoroutine;
 
         public bool IsDead => currentHp <= 0f;
         public Vector3 Position => transform.position;
@@ -607,6 +616,50 @@ namespace KRTD.Combat
                 slowMultiplier = multiplier;
             }
             slowEndTime = Mathf.Max(expired ? 0f : slowEndTime, Time.time + duration);
+
+            // 시각 피드백 — 슬로우가 새로 켜질 때만 코루틴 시작.
+            // 이미 코루틴이 돌고 있으면 slowEndTime 갱신만 따라가서 자동 연장된다.
+            if (slowTintCoroutine == null && slowMultiplier < 1f)
+            {
+                slowTintCoroutine = StartCoroutine(SlowTintCoroutine());
+            }
+        }
+
+        /// <summary>
+        /// 슬로우 활성 동안 자식 SpriteRenderer 들을 slowTint 색으로 덮고, 만료되면 원본 복원.
+        /// 도중 ApplySlow 가 다시 호출돼 slowEndTime 이 연장되면 자연스럽게 함께 연장된다.
+        /// 페이즈 깜빡임(FlashSpritesCoroutine) 과는 자연스럽게 공존 — flash 가 현재 색(=slowTint)
+        /// 을 캡처했다가 끝날 때 다시 깔아주므로 슬로우 틴트는 보존된다.
+        /// </summary>
+        private System.Collections.IEnumerator SlowTintCoroutine()
+        {
+            var renderers = GetComponentsInChildren<SpriteRenderer>();
+            if (renderers.Length == 0)
+            {
+                slowTintCoroutine = null;
+                yield break;
+            }
+
+            // 진짜 원본 색 캐시 — 틴트 적용 전 시점의 색.
+            var originals = new Color[renderers.Length];
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                originals[i] = renderers[i].color;
+                renderers[i].color = slowTint;
+            }
+
+            // 슬로우가 만료되거나 적이 죽을 때까지 대기.
+            while (Time.time < slowEndTime && !IsDead && !reachedEnd)
+            {
+                yield return null;
+            }
+
+            // 원본 복원 — 죽음/골인으로 렌더러가 사라지는 케이스 대비 null 체크.
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] != null) renderers[i].color = originals[i];
+            }
+            slowTintCoroutine = null;
         }
         private int ResolveGoldReward() => data != null ? data.goldReward : goldReward;
         private int ResolveLifeDamage() => data != null ? data.lifeDamage : lifeDamage;

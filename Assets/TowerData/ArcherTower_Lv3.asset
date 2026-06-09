@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: ArcherTower_Lv3
   m_EditorClassIdentifier: Assembly-CSharp::KRTD.Map.BuildingData
   buildingName: ArcherTower_Lv3
-  icon: {fileID: 7257567913506708742, guid: 72c22f22ea5e4488390ba536cd5ab98d, type: 3}
+  icon: {fileID: 7257567913506708742, guid: 277a50fd24135436398811e3293b2aa2, type: 3}
+  upgradeSlotIcon: {fileID: 0}
   buildingPrefab: {fileID: 5930100000000000001, guid: a83d5e2f4c639d1e8e0b5f6a7b8c9d03, type: 3}
   cost: 160
   nextUpgrade: {fileID: 0}

@@ -55,6 +55,16 @@ namespace KRTD.Combat
             "Animator 에 isDead Bool 추가 + Idle/Run/Attack → Die 전환(true), Die → Idle 전환(false) 필요.")]
         [SerializeField] private string deathBool = "isDead";
 
+        [Tooltip("Animator 의 Die 상태 이름. 사망 시 Play() 로 강제 점프해서 컨트롤러에 " +
+            "Attack→Die / Run→Die 트랜지션이 없어도 깔끔하게 Die 상태로 진입시킨다. " +
+            "비워두면 점프 안 하고 Bool 전이에만 의존.")]
+        [SerializeField] private string deathStateName = "Die";
+
+        [Tooltip("Animator 의 Idle 상태 이름. 부활 시 Play() 로 강제 점프해서 " +
+            "이전 사망/공격 자세 잔재 없이 깔끔하게 Idle 로 복귀시킨다. " +
+            "비워두면 점프 안 하고 Bool 전이에만 의존.")]
+        [SerializeField] private string idleStateName = "Idle";
+
         [Header("부활 시각 처리")]
         [Tooltip("사망 동안 자식 visualRoot 를 비활성화해서 시각적으로 사라지게 한다.")]
         [SerializeField] private bool hideVisualWhileDead = true;
@@ -315,9 +325,24 @@ namespace KRTD.Combat
             // 나를 노리던 적도 자기 currentEngageTarget 을 즉시 풀어 다른 후보를 잡을 수 있게.
             if (targetedBy != null) targetedBy.SetCurrentEngageTarget(null);
 
-            // Animator 사망 상태 진입 — Bool true.
-            if (animator != null && !string.IsNullOrEmpty(deathBool))
-                animator.SetBool(deathBool, true);
+            if (animator != null)
+            {
+                // 모든 상태 bool 정리: Attack/Run 끄고 Death 켜기.
+                if (!string.IsNullOrEmpty(attackBool)) animator.SetBool(attackBool, false);
+                if (!string.IsNullOrEmpty(runBool)) animator.SetBool(runBool, false);
+                if (!string.IsNullOrEmpty(deathBool)) animator.SetBool(deathBool, true);
+
+                // 트랜지션 그래프 우회 — Play() 로 Die 상태에 직접 점프한다.
+                // 이유: 컨트롤러에 Attack→Die / Run→Die 트랜지션이 없으면 Attack/Run 상태에서
+                // 죽었을 때 Idle 을 거쳐야만 Die 로 갈 수 있는데, Update(0f) 한 번으로는
+                // 두 단계 트랜지션이 다 안 처리된다. Play() 는 트랜지션 없이 즉시 하드 점프.
+                if (!string.IsNullOrEmpty(deathStateName) && animator.runtimeAnimatorController != null)
+                {
+                    animator.Play(deathStateName, 0, 0f);
+                }
+                // Die 클립 첫 프레임을 적용해 Die 자세로 굳은 채 잠들게 한다.
+                animator.Update(0f);
+            }
 
             if (hideVisualWhileDead)
             {
@@ -345,16 +370,31 @@ namespace KRTD.Combat
                 t.gameObject.SetActive(true);
             }
 
-            // Animator 사망 상태 해제 — Bool false → Die→Idle 전환 발화.
-            if (animator != null && !string.IsNullOrEmpty(deathBool))
-                animator.SetBool(deathBool, false);
-
-            // Idle 클립이 일부 자식 transform(다리 등)을 keyframe 하지 않으면 Die 의 마지막 자세가
-            // 그대로 남는다. WriteDefaultValues() 로 모든 애니메이트 속성을 기본값(스폰 직후)으로
-            // 강제 복원해 누운 자세 등 잔재 제거.
-            if (animator != null && animator.runtimeAnimatorController != null)
+            if (animator != null)
             {
-                animator.WriteDefaultValues();
+                // 모든 상태 bool 을 깨끗하게 — 사망 전 attack/run 이 켜져 있었더라도 부활 시 잔존 X.
+                if (!string.IsNullOrEmpty(attackBool)) animator.SetBool(attackBool, false);
+                if (!string.IsNullOrEmpty(runBool)) animator.SetBool(runBool, false);
+                if (!string.IsNullOrEmpty(deathBool)) animator.SetBool(deathBool, false);
+
+                if (animator.runtimeAnimatorController != null)
+                {
+                    // 트랜지션 그래프 우회 — Idle 상태로 즉시 하드 점프.
+                    // (KeepAnimatorStateOnDisable=0 이라 보통 비활성화 시 상태가 리셋되지만,
+                    //  WriteDefaultValuesOnDisable=0 이라 transform 은 Die/Attack 자세로 굳어 있다.
+                    //  Play() 로 Idle 시작점으로 강제 + WriteDefaultValues 로 transform 잔재 제거가
+                    //  두 박자 함께 들어가야 깔끔하게 Idle 자세로 부활한다.)
+                    if (!string.IsNullOrEmpty(idleStateName))
+                    {
+                        animator.Play(idleStateName, 0, 0f);
+                    }
+                    // Idle 첫 프레임 적용.
+                    animator.Update(0f);
+                    // Idle 클립이 일부 자식 transform(다리 등)을 keyframe 하지 않으면 Die/Attack 의
+                    // 마지막 자세가 그대로 남는다. WriteDefaultValues() 로 모든 애니메이트 속성을
+                    // 기본값으로 강제 복원해 누운/비틀린 자세 잔재 제거.
+                    animator.WriteDefaultValues();
+                }
             }
         }
 

@@ -26,8 +26,14 @@ namespace KRTD.UI
         [SerializeField] private BuildMenuConfig buildConfig;
 
         [Header("관리 메뉴 아이콘 (점유된 스팟용)")]
-        [Tooltip("업그레이드 버튼 아이콘.")]
+        [Tooltip("일반(단일) 업그레이드 슬롯 공용 폴백 아이콘. " +
+            "후보 BuildingData 에 upgradeSlotIcon / icon 이 모두 비어있을 때만 사용.")]
         [SerializeField] private Sprite upgradeIcon;
+
+        [Tooltip("분기 진화 슬롯 공용 폴백 아이콘. " +
+            "분기 후보(예: Pyromancer / Frost Mage) 의 upgradeSlotIcon / icon 이 모두 비어있을 때만 사용. " +
+            "비워두면 일반 upgradeIcon 으로 폴백.")]
+        [SerializeField] private Sprite evolveIcon;
 
         [Tooltip("판매 버튼 아이콘.")]
         [SerializeField] private Sprite sellIcon;
@@ -109,16 +115,23 @@ namespace KRTD.UI
             var current = spot.CurrentBuilding;
 
             // 업그레이드: 다음 단계 후보를 순회. 분기(2개 이상)면 12시 좌/우로 펼치고,
-            // 단일이면 12시 한 자리. 각 후보의 자체 icon 이 있으면 사용, 없으면 공용 upgradeIcon.
+            // 단일이면 12시 한 자리. 아이콘 우선순위:
+            //   1) 후보의 upgradeSlotIcon (분기 진화용 전용 아이콘 — 화염/얼음 테두리 같은 시각 구분용)
+            //   2) 후보의 일반 icon (건설 메뉴와 동일)
+            //   3) 분기면 공용 evolveIcon, 단일이면 공용 upgradeIcon
             if (current != null && current.CanUpgrade)
             {
                 var nextOptions = new List<BuildingData>(current.NextOptions);
+                bool isBranch = nextOptions.Count > 1;
+                Sprite sharedFallback = isBranch && evolveIcon != null ? evolveIcon : upgradeIcon;
                 for (int i = 0; i < nextOptions.Count; i++)
                 {
                     var nextCaptured = nextOptions[i];
                     if (nextCaptured == null) continue;
                     float angle = ResolveBranchAngle(i, nextOptions.Count);
-                    Sprite icon = nextCaptured.icon != null ? nextCaptured.icon : upgradeIcon;
+                    Sprite icon = nextCaptured.upgradeSlotIcon != null
+                        ? nextCaptured.upgradeSlotIcon
+                        : (nextCaptured.icon != null ? nextCaptured.icon : sharedFallback);
                     entries.Add(new RadialMenu.Entry(icon, () =>
                     {
                         if (!TrySpendGold(nextCaptured.cost, "업그레이드")) return;
