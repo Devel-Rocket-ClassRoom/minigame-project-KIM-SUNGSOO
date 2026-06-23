@@ -107,6 +107,20 @@ InitTestScene*.unity*
 
 .vscode/
 Assets/Imported/
+Assets/google-services.json
+Assets/google-services.json.meta
+Assets/StreamingAssets/google-services-desktop.json
+Assets/StreamingAssets/google-services-desktop.json.meta
+Assets/Resources/FirebaseConfig.asset
+# EDM 가 google-services.json 에서 자동 생성하는 Android 리소스 (API 키 포함 — repo 에서 제외)
+Assets/Plugins/Android/FirebaseApp.androidlib/res/values/google-services.xml
+Assets/Plugins/Android/FirebaseApp.androidlib/res/values/google-services.xml.meta
+# 데스크톱(에디터 플레이) Firebase 바이너리 — Windows(.dll)만 커밋. macOS(.bundle)/Linux(.so)는
+# 100MB 제한 회피 위해 제외(Firebase 재임포트 시 플랫폼별 재생성).
+Assets/Firebase/Plugins/x86_64/*.bundle
+Assets/Firebase/Plugins/x86_64/*.bundle.meta
+Assets/Firebase/Plugins/x86_64/*.so
+Assets/Firebase/Plugins/x86_64/*.so.meta
 
 Assets/Scenes/TestScene-ymj.unity
 Assets/Scenes/TestScene-ymj.unity.meta
