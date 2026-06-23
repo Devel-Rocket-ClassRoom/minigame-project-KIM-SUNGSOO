@@ -1,6 +1,8 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 using KRTD.Game;
+using KRTD.Cloud;
 
 namespace KRTD.UI
 {
@@ -59,6 +61,12 @@ namespace KRTD.UI
         [Tooltip("승/패 시 Time.timeScale 을 0 으로 만들어 씬 전체를 멈춘다. 끄면 UI 만 뜨고 씬은 계속 진행.")]
         [SerializeField] private bool freezeTimeOnEnd = true;
 
+        [Header("클라우드 저장")]
+        [Tooltip("이 씬이 나타내는 스테이지 번호. 클리어 시 이 ID 로 별점을 클라우드에 기록.")]
+        [SerializeField] private int stageId = 1;
+        [Tooltip("켜면 승리 시 로그인된 계정에 스테이지 별점을 자동 저장. 로그인 안 되어 있으면 조용히 건너뜀.")]
+        [SerializeField] private bool saveResultToCloud = true;
+
         private GameState state;
 
         private void Awake()
@@ -116,20 +124,42 @@ namespace KRTD.UI
 
         private void HandleWin()
         {
-            ApplyStarRating(state);
+            int stars = ApplyStarRating(state);
             if (winPanel != null) winPanel.SetActive(true);
             FreezeIfNeeded();
+
+            if (saveResultToCloud) SaveStageResult(stars);
         }
 
         /// <summary>
-        /// 남은 라이프 절대값으로 별 0~3개를 결정해 starIcons 에 반영.
-        /// 기준: Life ≥ threeStarMinLife → 3, ≥ twoStarMinLife → 2, ≥ 1 → 1, 그 외 → 0.
-        /// starIcons 가 3 개가 아니면 조용히 건너뛴다.
+        /// 클리어한 스테이지 별점을 로그인 계정에 저장. 미로그인/저장 불가 시 조용히 건너뛴다.
+        /// 기존 데이터를 로드한 뒤 이번 결과를 병합(별점은 더 높을 때만 갱신)하고 다시 저장한다.
         /// </summary>
-        private void ApplyStarRating(GameState gs)
+        private void SaveStageResult(int stars)
         {
-            if (starIcons == null || starIcons.Length != 3) return;
-            if (gs == null) return;
+            var cloud = CloudSaveManager.Instance;
+            if (cloud == null || !cloud.CanUse) return;
+
+            cloud.Load(data =>
+            {
+                if (data == null) data = new PlayerData();
+                data.SetStageResult(stageId, stars);
+                long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                cloud.Save(data, now, ok =>
+                {
+                    if (!ok) Debug.LogWarning("[GameOutcomeView] 스테이지 결과 클라우드 저장 실패.");
+                });
+            });
+        }
+
+        /// <summary>
+        /// 남은 라이프 절대값으로 별 0~3개를 결정해 starIcons 에 반영하고, 결정된 별 개수를 반환.
+        /// 기준: Life ≥ threeStarMinLife → 3, ≥ twoStarMinLife → 2, ≥ 1 → 1, 그 외 → 0.
+        /// starIcons 가 3 개가 아니어도 별 개수 계산·반환은 정상 수행(아이콘 반영만 건너뜀).
+        /// </summary>
+        private int ApplyStarRating(GameState gs)
+        {
+            if (gs == null) return 0;
 
             int life = gs.Life;
             int stars;
@@ -137,6 +167,8 @@ namespace KRTD.UI
             else if (life >= twoStarMinLife) stars = 2;
             else if (life >= 1) stars = 1;
             else stars = 0;
+
+            if (starIcons == null || starIcons.Length != 3) return stars;
 
             for (int i = 0; i < starIcons.Length; i++)
             {
@@ -153,6 +185,7 @@ namespace KRTD.UI
                     icon.color = on ? starOnColor : starOffColor;
                 }
             }
+            return stars;
         }
 
         private void HandleLose()
