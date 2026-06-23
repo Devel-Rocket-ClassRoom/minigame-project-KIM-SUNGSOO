@@ -226,5 +226,18 @@ namespace KRTD.Audio
         {
             if (sfxSource != null) sfxSource.volume = Mathf.Clamp01(v);
         }
+
+        public float BgmVolume => targetBgmVolume;
+        public float SfxVolume => sfxSource != null ? sfxSource.volume : DefaultVolume;
+
+        /// <summary>두 볼륨을 적용하고 PlayerPrefs 에 반영 (로그인 시 계정 볼륨 → 로컬).</summary>
+        public void ApplyVolumes(float bgm, float sfx)
+        {
+            SetBgmVolume(bgm);
+            SetSfxVolume(sfx);
+            PlayerPrefs.SetFloat(BgmVolumeKey, Mathf.Clamp01(bgm));
+            PlayerPrefs.SetFloat(SfxVolumeKey, Mathf.Clamp01(sfx));
+            PlayerPrefs.Save();
+        }
     }
 }

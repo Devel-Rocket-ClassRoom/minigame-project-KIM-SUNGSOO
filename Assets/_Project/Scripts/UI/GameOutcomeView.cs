@@ -128,24 +128,26 @@ namespace KRTD.UI
             if (winPanel != null) winPanel.SetActive(true);
             FreezeIfNeeded();
 
-            if (saveResultToCloud) SaveStageResult(stars);
+            if (saveResultToCloud) RecordOutcomeToCloud(won: true, stars: stars);
         }
 
-        /// <summary>
-        /// 클리어한 스테이지 별점을 로그인 계정에 저장. 미로그인/저장 불가 시 조용히 건너뛴다.
-        /// 기존 데이터를 로드한 뒤 이번 결과를 병합(별점은 더 높을 때만 갱신)하고 다시 저장한다.
-        /// </summary>
-        private void SaveStageResult(int stars)
+        // 이번 판 결과를 로그인 계정에 기록 (미로그인 시 건너뜀).
+        private void RecordOutcomeToCloud(bool won, int stars)
         {
-            var cloud = CloudSaveManager.Instance;
-            if (cloud == null || !cloud.CanUse) return;
+            var svc = PlayerDataService.Instance;
+            if (svc == null || !svc.CanUse) return;
 
-            cloud.Load(data =>
+            svc.Load(data =>
             {
-                if (data == null) data = new PlayerData();
-                data.SetStageResult(stageId, stars);
+                // 로드 실패 시 저장 스킵 — 빈 데이터로 덮어써 닉네임/기록이 날아가는 것 방지.
+                if (data == null)
+                {
+                    Debug.LogWarning("[GameOutcomeView] 데이터 로드 실패 — 결과 저장 건너뜀.");
+                    return;
+                }
+                data.RecordStageOutcome(stageId, won, stars);
                 long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                cloud.Save(data, now, ok =>
+                svc.Save(data, now, ok =>
                 {
                     if (!ok) Debug.LogWarning("[GameOutcomeView] 스테이지 결과 클라우드 저장 실패.");
                 });
@@ -192,6 +194,9 @@ namespace KRTD.UI
         {
             if (losePanel != null) losePanel.SetActive(true);
             FreezeIfNeeded();
+
+            // 패배도 도전 횟수에 포함 (클리어/별점은 갱신 안 함).
+            if (saveResultToCloud) RecordOutcomeToCloud(won: false, stars: 0);
         }
 
         private void FreezeIfNeeded()

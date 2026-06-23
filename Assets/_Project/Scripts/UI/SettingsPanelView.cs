@@ -1,13 +1,14 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 using KRTD.Audio;
+using KRTD.Cloud;
 
 namespace KRTD.UI
 {
     /// <summary>
-    /// 설정 모달 패널. BGM/SFX 볼륨 슬라이더와 닫기 버튼을 다룬다.
-    /// 값은 PlayerPrefs 에 즉시 저장 (bgmVolume / sfxVolume, 둘 다 0~1 float)
-    /// 되며, 동시에 <see cref="AudioManager"/> 에 즉시 반영되어 재생 중인 BGM/SFX 볼륨이 실시간 변경된다.
+    /// 설정 패널. BGM/SFX 슬라이더 → PlayerPrefs + AudioManager 즉시 반영.
+    /// 닫을 때 로그인 상태면 볼륨을 계정에도 동기화한다.
     /// </summary>
     public class SettingsPanelView : MonoBehaviour
     {
@@ -24,7 +25,6 @@ namespace KRTD.UI
 
         private void Awake()
         {
-            // 저장된 값 로드 (없으면 기본값).
             float bgm = PlayerPrefs.GetFloat(BgmVolumeKey, DefaultVolume);
             float sfx = PlayerPrefs.GetFloat(SfxVolumeKey, DefaultVolume);
 
@@ -50,20 +50,28 @@ namespace KRTD.UI
         private void HandleBgmChanged(float value)
         {
             PlayerPrefs.SetFloat(BgmVolumeKey, value);
-            var am = AudioManager.Instance;
-            if (am != null) am.SetBgmVolume(value);
+            AudioManager.Instance?.SetBgmVolume(value);
         }
 
         private void HandleSfxChanged(float value)
         {
             PlayerPrefs.SetFloat(SfxVolumeKey, value);
-            var am = AudioManager.Instance;
-            if (am != null) am.SetSfxVolume(value);
+            AudioManager.Instance?.SetSfxVolume(value);
         }
 
         private void HandleClose()
         {
             PlayerPrefs.Save();
+
+            // 드래그마다가 아니라 닫을 때 한 번만 계정에 동기화 (부분 업데이트).
+            var svc = PlayerDataService.Instance;
+            var am = AudioManager.Instance;
+            if (svc != null && am != null && svc.CanUse)
+            {
+                long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                svc.SaveVolumes(am.BgmVolume, am.SfxVolume, now);
+            }
+
             gameObject.SetActive(false);
         }
     }

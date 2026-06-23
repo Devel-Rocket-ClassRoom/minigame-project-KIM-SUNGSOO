@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Firebase.Database;
 using Firebase.Extensions;
 using UnityEngine;
@@ -6,31 +7,17 @@ using UnityEngine;
 namespace KRTD.Cloud
 {
     /// <summary>
-    /// 플레이어 데이터를 Firebase Realtime Database 에 저장/로드하는 싱글톤.
-    /// 경로 구조: <c>users/{uid}</c> 아래에 <see cref="PlayerData"/> 전체를 JSON 으로 보관.
-    ///
-    /// 책임:
-    ///   - 현재 로그인 사용자(AuthManager.CurrentUser) 기준으로 읽기/쓰기
-    ///   - JsonUtility ↔ RTDB(RawJsonValue) 변환
-    ///   - 콜백은 메인 스레드(ContinueWithOnMainThread)에서 호출 → Unity API 안전
-    ///
-    /// DB 루트는 <see cref="Root"/> 프로퍼티로 "지연 초기화" 한다.
-    /// AuthManager 가 초기화 직후(OnReady 체인 안에서) 자동 로그인 세션을 감지해
-    /// 곧바로 Load 를 호출하는데, 그 시점에 이 매니저의 Setup 이 아직 안 돌았을 수 있다.
-    /// 그래서 OnReady 구독에 의존하지 않고, 호출되는 순간 FirebaseInit.IsReady 면 루트를 잡는다.
-    ///
-    /// 주의:
-    ///   - RTDB 보안 규칙에서 본인 uid 노드만 읽기/쓰기 허용하도록 잠가야 한다(가이드 참조).
+    /// 범용 RTDB 접근 서비스. 임의 경로에 임의 직렬화 타입(JsonUtility)을 읽고 쓴다.
+    /// 특정 게임 데이터에 의존하지 않아 다른 프로젝트에 그대로 이식 가능.
+    /// 경로 규칙·게임 모델은 PlayerDataService 같은 게임 전용 계층에서 다룬다.
     /// </summary>
     public class CloudSaveManager : MonoBehaviour
     {
         public static CloudSaveManager Instance { get; private set; }
 
-        private const string UsersNode = "users";
-
         private DatabaseReference root;
 
-        /// <summary>DB 루트 참조. Firebase 준비가 끝났으면 최초 접근 시 한 번 잡아 캐싱.</summary>
+        // 자동 로그인 시 호출이 Setup 보다 빠를 수 있어 구독 대신 지연 초기화한다.
         private DatabaseReference Root
         {
             get
@@ -40,6 +27,9 @@ namespace KRTD.Cloud
                 return root;
             }
         }
+
+        /// <summary>Firebase 준비 완료 여부 (로그인 여부는 호출부가 판단).</summary>
+        public bool IsReady => Root != null;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void ResetStatic() { Instance = null; }
@@ -60,91 +50,80 @@ namespace KRTD.Cloud
             if (Instance == this) Instance = null;
         }
 
-        /// <summary>저장/로드가 가능한 상태(Firebase 준비 완료 + 로그인됨)인지.</summary>
-        public bool CanUse =>
-            Root != null && AuthManager.Instance != null && AuthManager.Instance.IsSignedIn;
-
-        // --- 저장 --------------------------------------------------------------
-
-        /// <summary>
-        /// 플레이어 데이터를 현재 계정 노드에 통째로 저장(덮어쓰기).
-        /// createdAt 이 비어 있으면 이번 시각으로 채운다. updatedAt 은 항상 갱신.
-        /// </summary>
-        /// <param name="nowUnixMs">
-        /// 저장 시각(Unix epoch ms). 호출부에서
-        /// <c>DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()</c> 로 넣어준다.
-        /// </param>
-        /// <param name="onComplete">성공 여부 콜백(선택).</param>
-        public void Save(PlayerData data, long nowUnixMs, Action<bool> onComplete = null)
+        /// <summary>지정 경로에 객체 전체를 JSON 으로 저장(덮어쓰기).</summary>
+        public void Save<T>(string path, T data, Action<bool> onComplete = null)
         {
-            if (data == null) { onComplete?.Invoke(false); return; }
-            if (!CanUse)
+            if (!IsReady || data == null)
             {
-                Debug.LogWarning("[CloudSave] 저장 불가 — 초기화/로그인 상태를 확인하세요.");
+                Debug.LogWarning($"[CloudSave] 저장 불가({path}) — Firebase 준비 상태를 확인하세요.");
                 onComplete?.Invoke(false);
                 return;
             }
 
-            if (data.createdAtUnixMs == 0) data.createdAtUnixMs = nowUnixMs;
-            data.updatedAtUnixMs = nowUnixMs;
-
-            string json = JsonUtility.ToJson(data);
-            string uid = AuthManager.Instance.UserId;
-
-            Root.Child(UsersNode).Child(uid).SetRawJsonValueAsync(json)
-                .ContinueWithOnMainThread(task =>
+            Root.Child(path).SetRawJsonValueAsync(JsonUtility.ToJson(data))
+                .ContinueWithOnMainThread(t =>
                 {
-                    bool ok = !task.IsFaulted && !task.IsCanceled;
-                    if (!ok) Debug.LogError($"[CloudSave] 저장 실패: {task.Exception}");
+                    bool ok = !t.IsFaulted && !t.IsCanceled;
+                    if (!ok) Debug.LogError($"[CloudSave] 저장 실패({path}): {t.Exception}");
                     onComplete?.Invoke(ok);
                 });
         }
 
-        // --- 로드 --------------------------------------------------------------
-
-        /// <summary>
-        /// 현재 계정의 데이터를 로드. 노드가 없으면(신규 계정) null 을 콜백으로 돌려준다 →
-        /// 호출부에서 새 <see cref="PlayerData"/> 를 만들어 닉네임 설정 후 Save 하면 된다.
-        /// </summary>
-        public void Load(Action<PlayerData> onLoaded)
+        /// <summary>지정 경로를 읽어 T 로 역직렬화. 노드가 없거나 실패하면 null.</summary>
+        public void Load<T>(string path, Action<T> onLoaded) where T : class
         {
-            if (!CanUse)
+            if (!IsReady)
             {
-                Debug.LogWarning("[CloudSave] 로드 불가 — 초기화/로그인 상태를 확인하세요.");
+                Debug.LogWarning($"[CloudSave] 로드 불가({path}) — Firebase 준비 상태를 확인하세요.");
                 onLoaded?.Invoke(null);
                 return;
             }
 
-            string uid = AuthManager.Instance.UserId;
-            Root.Child(UsersNode).Child(uid).GetValueAsync()
-                .ContinueWithOnMainThread(task =>
+            Root.Child(path).GetValueAsync()
+                .ContinueWithOnMainThread(t =>
                 {
-                    if (task.IsFaulted || task.IsCanceled)
+                    if (t.IsFaulted || t.IsCanceled)
                     {
-                        Debug.LogError($"[CloudSave] 로드 실패: {task.Exception}");
+                        Debug.LogError($"[CloudSave] 로드 실패({path}): {t.Exception}");
                         onLoaded?.Invoke(null);
                         return;
                     }
 
-                    DataSnapshot snapshot = task.Result;
+                    DataSnapshot snapshot = t.Result;
                     if (snapshot == null || !snapshot.Exists)
                     {
-                        onLoaded?.Invoke(null); // 신규 계정.
+                        onLoaded?.Invoke(null);
                         return;
                     }
 
-                    PlayerData data;
                     try
                     {
-                        data = JsonUtility.FromJson<PlayerData>(snapshot.GetRawJsonValue());
+                        onLoaded?.Invoke(JsonUtility.FromJson<T>(snapshot.GetRawJsonValue()));
                     }
                     catch (Exception ex)
                     {
-                        Debug.LogError($"[CloudSave] JSON 파싱 실패: {ex}");
+                        Debug.LogError($"[CloudSave] 파싱 실패({path}): {ex}");
                         onLoaded?.Invoke(null);
-                        return;
                     }
-                    onLoaded?.Invoke(data);
+                });
+        }
+
+        /// <summary>지정 경로의 일부 필드만 부분 업데이트(나머지 보존).</summary>
+        public void UpdateFields(string path, Dictionary<string, object> updates, Action<bool> onComplete = null)
+        {
+            if (!IsReady)
+            {
+                Debug.LogWarning($"[CloudSave] 부분저장 불가({path}) — Firebase 준비 상태를 확인하세요.");
+                onComplete?.Invoke(false);
+                return;
+            }
+
+            Root.Child(path).UpdateChildrenAsync(updates)
+                .ContinueWithOnMainThread(t =>
+                {
+                    bool ok = !t.IsFaulted && !t.IsCanceled;
+                    if (!ok) Debug.LogError($"[CloudSave] 부분저장 실패({path}): {t.Exception}");
+                    onComplete?.Invoke(ok);
                 });
         }
     }

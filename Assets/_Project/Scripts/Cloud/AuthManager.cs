@@ -7,18 +7,9 @@ using UnityEngine;
 namespace KRTD.Cloud
 {
     /// <summary>
-    /// Firebase 이메일/비밀번호 인증 래퍼 싱글톤.
-    /// <see cref="DontDestroyOnLoad"/> 로 씬 전환에도 살아남으며 로그인 상태를 유지한다.
-    ///
-    /// 책임:
-    ///   - 회원가입(<see cref="SignUp"/>) / 로그인(<see cref="SignIn"/>) / 로그아웃(<see cref="SignOut"/>)
-    ///   - Firebase 의 <see cref="FirebaseAuth.StateChanged"/> 를 구독해 로그인/로그아웃 이벤트 브로드캐스트
-    ///   - 에러 코드를 한국어 메시지로 변환해 UI 에 전달
-    ///
-    /// 주의:
-    ///   - <see cref="FirebaseInit"/> 초기화가 끝나야 동작한다. 준비 전이면 OnReady 를 기다린다.
-    ///   - Firebase 콘솔 → Authentication → Sign-in method 에서 "이메일/비밀번호" 를 활성화해야 한다.
-    ///   - 모든 콜백은 ContinueWithOnMainThread 로 메인 스레드에서 돈다 → Unity API 안전.
+    /// Firebase 이메일/비밀번호 인증 래퍼 싱글톤. FirebaseInit 준비 후 동작하며
+    /// StateChanged 로 로그인/로그아웃을 브로드캐스트한다.
+    /// (콘솔: Authentication → 이메일/비밀번호 제공자 활성화 필요)
     /// </summary>
     [DefaultExecutionOrder(-100)]
     public class AuthManager : MonoBehaviour
@@ -26,18 +17,14 @@ namespace KRTD.Cloud
         public static AuthManager Instance { get; private set; }
 
         private FirebaseAuth auth;
+        private FirebaseUser lastUser;
 
-        /// <summary>현재 로그인된 사용자. 미로그인 시 null.</summary>
         public FirebaseUser CurrentUser => auth?.CurrentUser;
         public bool IsSignedIn => CurrentUser != null;
-        /// <summary>Realtime Database 경로 키로 쓰는 고유 ID. 미로그인 시 null.</summary>
         public string UserId => CurrentUser?.UserId;
 
-        /// <summary>로그인 성공(또는 앱 시작 시 기존 세션 복원) 시 호출.</summary>
         public event Action<FirebaseUser> OnSignedIn;
-        /// <summary>로그아웃 시 호출.</summary>
         public event Action OnSignedOut;
-        /// <summary>회원가입/로그인 실패 시 한국어 메시지와 함께 호출.</summary>
         public event Action<string> OnError;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -68,25 +55,19 @@ namespace KRTD.Cloud
         {
             auth = FirebaseAuth.DefaultInstance;
             auth.StateChanged += HandleStateChanged;
-            // 앱 시작 시 이미 로그인된 세션이 있으면 즉시 한 번 반영.
-            HandleStateChanged(this, EventArgs.Empty);
+            HandleStateChanged(this, EventArgs.Empty); // 기존 세션 즉시 반영
         }
-
-        private FirebaseUser lastUser;
 
         private void HandleStateChanged(object sender, EventArgs e)
         {
             FirebaseUser user = auth.CurrentUser;
-            if (user == lastUser) return; // 중복 방지.
+            if (user == lastUser) return;
             lastUser = user;
 
             if (user != null) OnSignedIn?.Invoke(user);
             else OnSignedOut?.Invoke();
         }
 
-        // --- 공개 API ----------------------------------------------------------
-
-        /// <summary>이메일/비밀번호로 새 계정 생성. 성공 시 자동 로그인되어 OnSignedIn 이 발사된다.</summary>
         public void SignUp(string email, string password)
         {
             if (!ValidateInput(email, password)) return;
@@ -95,16 +76,11 @@ namespace KRTD.Cloud
             auth.CreateUserWithEmailAndPasswordAsync(email.Trim(), password)
                 .ContinueWithOnMainThread(task =>
                 {
-                    if (task.IsCanceled || task.IsFaulted)
-                    {
-                        OnError?.Invoke(DescribeError(task.Exception));
-                        return;
-                    }
-                    // 성공 — StateChanged 가 OnSignedIn 을 발사한다.
+                    if (task.IsCanceled || task.IsFaulted) OnError?.Invoke(DescribeError(task.Exception));
+                    // 성공 시 StateChanged 가 OnSignedIn 발사
                 });
         }
 
-        /// <summary>기존 계정으로 로그인. 성공 시 OnSignedIn 이 발사된다.</summary>
         public void SignIn(string email, string password)
         {
             if (!ValidateInput(email, password)) return;
@@ -113,22 +89,11 @@ namespace KRTD.Cloud
             auth.SignInWithEmailAndPasswordAsync(email.Trim(), password)
                 .ContinueWithOnMainThread(task =>
                 {
-                    if (task.IsCanceled || task.IsFaulted)
-                    {
-                        OnError?.Invoke(DescribeError(task.Exception));
-                        return;
-                    }
-                    // 성공 — StateChanged 가 OnSignedIn 을 발사한다.
+                    if (task.IsCanceled || task.IsFaulted) OnError?.Invoke(DescribeError(task.Exception));
                 });
         }
 
-        /// <summary>로그아웃. StateChanged 가 OnSignedOut 을 발사한다.</summary>
-        public void SignOut()
-        {
-            auth?.SignOut();
-        }
-
-        // --- 내부 유틸 ----------------------------------------------------------
+        public void SignOut() => auth?.SignOut();
 
         private bool ValidateInput(string email, string password)
         {
@@ -145,7 +110,6 @@ namespace KRTD.Cloud
             return true;
         }
 
-        /// <summary>Firebase 에러를 사용자에게 보여줄 한국어 메시지로 변환.</summary>
         private string DescribeError(AggregateException exception)
         {
             if (exception == null) return "알 수 없는 오류가 발생했습니다.";

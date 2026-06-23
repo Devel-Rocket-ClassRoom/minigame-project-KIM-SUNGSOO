@@ -11,25 +11,9 @@ using UnityEngine.UI;
 namespace KRTD.EditorTools
 {
     /// <summary>
-    /// MainMenu 씬에 로그인 플로우 UI(① 로그인 / ② 환영)를 자동 생성·연결하는 일회성 에디터 툴.
-    ///
-    /// 메뉴: <b>KRTD ▸ Setup ▸ 로그인 + 메뉴 UI 생성</b>
-    ///
-    /// 하는 일:
-    ///   1) 씬의 Canvas / EventSystem 보장 (없으면 생성)
-    ///   2) FirebaseManagers 오브젝트 (FirebaseInit + AuthManager + CloudSaveManager) — 이미 있으면 재사용
-    ///   3) ① LoginPanel  : 이메일/비밀번호/닉네임 입력 + [로그인]/[회원가입]/[게임 종료] + 상태 텍스트 → LoginView
-    ///      ② WelcomePanel: 환영 텍스트 + [게임 시작](메인 메뉴로 진입) + [로그아웃]
-    ///   4) LoginView / MainMenuView 의 ①② 관련 SerializeField 자동 연결
-    ///   5) 생성한 모든 TMP 텍스트에 Pretendard-Regular SDF 폰트 적용
-    ///
-    /// ③ MainMenuPanel(기존 메인 메뉴)은 건드리지 않는다. MainMenuView 의
-    ///   mainMenuPanel / startButton / settingsButton / logoutButton / settingsPanel 은
-    ///   인스펙터에서 기존 패널·버튼에 직접 연결할 것.
-    ///
-    /// 주의:
-    ///   - 기능 배치용 "뼈대" UI 다. 색/위치는 생성 후 에디터에서 다듬으면 된다.
-    ///   - 다시 실행하면 기존 LoginPanel/WelcomePanel 을 지우고 새로 만든다(멱등).
+    /// 메뉴 KRTD ▸ Setup ▸ 로그인 + 메뉴 UI 생성. Canvas/EventSystem/FirebaseManagers 보장 후
+    /// ① LoginPanel(LoginView) / ② WelcomePanel 을 생성·연결하고 Pretendard 폰트를 적용한다(멱등).
+    /// ③ MainMenuPanel(기존 패널)은 건드리지 않으며 인스펙터에서 직접 연결해야 한다.
     /// </summary>
     public static class LoginMenuUiSetup
     {
@@ -152,6 +136,7 @@ namespace KRTD.EditorTools
             }
             if (go.GetComponent<AuthManager>() == null) go.AddComponent<AuthManager>();
             if (go.GetComponent<CloudSaveManager>() == null) go.AddComponent<CloudSaveManager>();
+            if (go.GetComponent<PlayerDataService>() == null) go.AddComponent<PlayerDataService>();
         }
 
         // --- UI 생성 헬퍼 ------------------------------------------------------
